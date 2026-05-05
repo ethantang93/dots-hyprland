@@ -96,6 +96,10 @@ Item {
                 }
             }
 
+            GpuFanCard {
+                Layout.fillWidth: true
+            }
+
             CenterWidgetGroup {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.fillHeight: true

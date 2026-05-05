@@ -7,7 +7,8 @@ import Quickshell
 import Quickshell.Io
 
 /**
- * Simple polled resource usage service with RAM, Swap, and CPU usage.
+ * Polled resource usage service with RAM, Swap, CPU, GPU usage, temperatures,
+ * and top processes. Customized for NVIDIA GPU + AMD CPU (k10temp).
  */
 Singleton {
     id: root
@@ -20,7 +21,12 @@ Singleton {
 	property real swapUsed: swapTotal - swapFree
     property real swapUsedPercentage: swapTotal > 0 ? (swapUsed / swapTotal) : 0
     property real cpuUsage: 0
+    property real cpuTemp: 0
+    property real gpuUsage: 0
+    property real gpuTemp: 0
     property var previousCpuStats
+    property var topCpuProcesses: []
+    property var topMemProcesses: []
 
     property string maxAvailableMemoryString: kbToGbString(ResourceUsage.memoryTotal)
     property string maxAvailableSwapString: kbToGbString(ResourceUsage.swapTotal)
@@ -61,21 +67,18 @@ Singleton {
 
 	Timer {
 		interval: 1
-        running: true 
+        running: true
         repeat: true
 		onTriggered: {
-            // Reload files
             fileMeminfo.reload()
             fileStat.reload()
 
-            // Parse memory and swap usage
             const textMeminfo = fileMeminfo.text()
             memoryTotal = Number(textMeminfo.match(/MemTotal: *(\d+)/)?.[1] ?? 1)
             memoryFree = Number(textMeminfo.match(/MemAvailable: *(\d+)/)?.[1] ?? 0)
             swapTotal = Number(textMeminfo.match(/SwapTotal: *(\d+)/)?.[1] ?? 1)
             swapFree = Number(textMeminfo.match(/SwapFree: *(\d+)/)?.[1] ?? 0)
 
-            // Parse CPU usage
             const textStat = fileStat.text()
             const cpuLine = textStat.match(/^cpu\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/)
             if (cpuLine) {
@@ -92,6 +95,12 @@ Singleton {
                 previousCpuStats = { total, idle }
             }
 
+            // Re-trigger external probes
+            cpuTempProc.running = false; cpuTempProc.running = true
+            gpuStatsProc.running = false; gpuStatsProc.running = true
+            topCpuProc.running = false; topCpuProc.running = true
+            topMemProc.running = false; topMemProc.running = true
+
             root.updateHistories()
             interval = Config.options?.resources?.updateInterval ?? 3000
         }
@@ -102,16 +111,74 @@ Singleton {
 
     Process {
         id: findCpuMaxFreqProc
-        environment: ({
-            LANG: "C",
-            LC_ALL: "C"
-        })
+        environment: ({ LANG: "C", LC_ALL: "C" })
         command: ["bash", "-c", "lscpu | grep 'CPU max MHz' | awk '{print $4}'"]
         running: true
         stdout: StdioCollector {
             id: outputCollector
             onStreamFinished: {
                 root.maxAvailableCpuString = (parseFloat(outputCollector.text) / 1000).toFixed(0) + " GHz"
+            }
+        }
+    }
+
+    // CPU temp via k10temp Tctl
+    Process {
+        id: cpuTempProc
+        environment: ({ LANG: "C", LC_ALL: "C" })
+        command: ["bash", "-c", "sensors -u k10temp-pci-00c3 2>/dev/null | awk '/Tctl:/{getline; print $2; exit}'"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const v = parseFloat(this.text)
+                if (!isNaN(v)) root.cpuTemp = v
+            }
+        }
+    }
+
+    // GPU usage + temp via nvidia-smi
+    Process {
+        id: gpuStatsProc
+        environment: ({ LANG: "C", LC_ALL: "C" })
+        command: ["bash", "-c", "nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const parts = this.text.trim().split(",").map(s => parseFloat(s.trim()))
+                if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                    root.gpuUsage = parts[0] / 100
+                    root.gpuTemp = parts[1]
+                }
+            }
+        }
+    }
+
+    // Top 5 CPU-hungry processes
+    Process {
+        id: topCpuProc
+        environment: ({ LANG: "C", LC_ALL: "C" })
+        command: ["bash", "-c", "ps -eo comm,%cpu --sort=-%cpu --no-headers | head -5"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = this.text.trim().split("\n").filter(l => l.length > 0)
+                root.topCpuProcesses = lines.map(line => {
+                    const m = line.trim().match(/^(.+?)\s+([\d.]+)$/)
+                    return m ? { name: m[1], usage: m[2] + "%" } : null
+                }).filter(x => x !== null)
+            }
+        }
+    }
+
+    // Top 5 memory-hungry processes
+    Process {
+        id: topMemProc
+        environment: ({ LANG: "C", LC_ALL: "C" })
+        command: ["bash", "-c", "ps -eo comm,%mem --sort=-%mem --no-headers | head -5"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = this.text.trim().split("\n").filter(l => l.length > 0)
+                root.topMemProcesses = lines.map(line => {
+                    const m = line.trim().match(/^(.+?)\s+([\d.]+)$/)
+                    return m ? { name: m[1], mem: m[2] + "%" } : null
+                }).filter(x => x !== null)
             }
         }
     }
