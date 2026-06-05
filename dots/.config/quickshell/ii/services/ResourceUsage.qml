@@ -24,7 +24,12 @@ Singleton {
     property real cpuTemp: 0
     property real gpuUsage: 0
     property real gpuTemp: 0
+    property real cpuPower: 0
+    property real gpuPower: 0
+    property real totalPower: cpuPower + gpuPower
     property var previousCpuStats
+    property real previousRaplEnergy: -1
+    property real previousRaplTimestamp: 0
     property var topCpuProcesses: []
     property var topMemProcesses: []
 
@@ -96,6 +101,7 @@ Singleton {
             }
 
             // Re-trigger external probes
+            raplProc.running = false; raplProc.running = true
             cpuTempProc.running = false; cpuTempProc.running = true
             gpuStatsProc.running = false; gpuStatsProc.running = true
             topCpuProc.running = false; topCpuProc.running = true
@@ -122,6 +128,26 @@ Singleton {
         }
     }
 
+    // CPU package power via RAPL
+    Process {
+        id: raplProc
+        environment: ({ LANG: "C", LC_ALL: "C" })
+        command: ["sudo", "-n", "/usr/local/bin/rapl-read"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const raplUj = Number(this.text.trim())
+                const nowMs = Date.now()
+                if (root.previousRaplEnergy >= 0 && nowMs > root.previousRaplTimestamp) {
+                    const deltaUj = raplUj >= root.previousRaplEnergy ? (raplUj - root.previousRaplEnergy) : raplUj
+                    const deltaSec = (nowMs - root.previousRaplTimestamp) / 1000
+                    if (deltaSec > 0) root.cpuPower = (deltaUj / 1e6) / deltaSec
+                }
+                root.previousRaplEnergy = raplUj
+                root.previousRaplTimestamp = nowMs
+            }
+        }
+    }
+
     // CPU temp via k10temp Tctl
     Process {
         id: cpuTempProc
@@ -139,13 +165,14 @@ Singleton {
     Process {
         id: gpuStatsProc
         environment: ({ LANG: "C", LC_ALL: "C" })
-        command: ["bash", "-c", "nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits 2>/dev/null"]
+        command: ["bash", "-c", "nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,power.draw --format=csv,noheader,nounits 2>/dev/null"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const parts = this.text.trim().split(",").map(s => parseFloat(s.trim()))
-                if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1])) {
                     root.gpuUsage = parts[0] / 100
                     root.gpuTemp = parts[1]
+                    if (!isNaN(parts[2])) root.gpuPower = parts[2]
                 }
             }
         }

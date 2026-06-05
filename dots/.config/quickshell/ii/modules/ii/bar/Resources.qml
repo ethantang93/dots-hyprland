@@ -55,6 +55,13 @@ MouseArea {
             Layout.leftMargin: 6
             warningThreshold: Config.options.bar.resources.memoryWarningThreshold
         }
+
+        ResourcePower {
+            iconName: "bolt"
+            watts: ResourceUsage.totalPower
+            Layout.leftMargin: 6
+            warningWatts: 300
+        }
     }
 
     ResourcesPopup {
