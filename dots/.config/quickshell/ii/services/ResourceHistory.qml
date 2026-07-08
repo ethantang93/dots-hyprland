@@ -33,7 +33,7 @@ Singleton {
         // yet when this runs from onWindowSecondsChanged, so the process
         // would relaunch with the previous window's query
         queryProc.command = [
-            Quickshell.env("HOME") + "/.local/bin/resource-history",
+            "/usr/bin/resource-history",
             "query", "--window", root.windowSeconds.toString()
         ];
         queryProc.running = true;
