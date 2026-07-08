@@ -1,5 +1,6 @@
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.services
 import QtQuick
 import QtQuick.Layouts
 
@@ -23,6 +24,12 @@ ColumnLayout {
     readonly property int processRowWidth: contentWidth
 
     spacing: 8
+
+    // The ps probes feeding the process list only run while a popup that
+    // shows one is open (GPU has no process list)
+    readonly property bool consumesProcessList: metricId === "cpu" || metricId === "mem"
+    Component.onCompleted: if (consumesProcessList) ResourceUsage.detailConsumers++
+    Component.onDestruction: if (consumesProcessList) ResourceUsage.detailConsumers--
 
     // Ring gauge (iStat Menus style): % + metric name in the center
     Item {

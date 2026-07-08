@@ -1,0 +1,20 @@
+groups=(illogical-impulse)
+pkgname=illogical-impulse-istat-helpers
+pkgver=1.0
+pkgrel=1
+pkgdesc='Privileged CPU-power and GPU-fan helpers for the illogical-impulse IStat bar widget'
+arch=('any')
+license=('MIT')
+# Declared explicitly: install-local-pkgbuild sources PKGBUILDs in one shell,
+# so an undeclared depends would inherit the previous package's array
+depends=(bash sudo)
+optdepends=('nvidia-settings: GPU fan control (gpu-fan)')
+source=("rapl-read" "gpu-fan" "sudoers")
+sha256sums=('SKIP' 'SKIP' 'SKIP')
+
+package() {
+  install -Dm755 rapl-read "$pkgdir/usr/bin/rapl-read"
+  install -Dm755 gpu-fan "$pkgdir/usr/bin/gpu-fan"
+  # sudoers.d entries containing '.' are ignored, hence the extension-less name
+  install -Dm440 sudoers "$pkgdir/etc/sudoers.d/illogical-impulse-istat"
+}

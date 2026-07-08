@@ -22,9 +22,9 @@ Singleton {
     function setManual(enabled) {
         if (enabled) {
             const speed = Math.max(root.minSpeed, Math.min(root.maxSpeed, Math.round(root.targetSpeed)));
-            Quickshell.execDetached(["sudo", "-n", "/usr/local/bin/gpu-fan", "manual", `${speed}`]);
+            Quickshell.execDetached(["sudo", "-n", "/usr/bin/gpu-fan", "manual", `${speed}`]);
         } else {
-            Quickshell.execDetached(["sudo", "-n", "/usr/local/bin/gpu-fan", "auto"]);
+            Quickshell.execDetached(["sudo", "-n", "/usr/bin/gpu-fan", "auto"]);
         }
         root.manual = enabled;
         refreshTimer.restart();
@@ -34,7 +34,7 @@ Singleton {
         const clamped = Math.max(root.minSpeed, Math.min(root.maxSpeed, Math.round(speed)));
         root.targetSpeed = clamped;
         if (root.manual) {
-            Quickshell.execDetached(["sudo", "-n", "/usr/local/bin/gpu-fan", "speed", `${clamped}`]);
+            Quickshell.execDetached(["sudo", "-n", "/usr/bin/gpu-fan", "speed", `${clamped}`]);
             refreshTimer.restart();
         }
     }
@@ -60,7 +60,10 @@ Singleton {
 
     Process {
         id: stateProc
-        command: ["sudo", "-n", "/usr/local/bin/gpu-fan", "query"]
+        command: ["nvidia-settings", "-t",
+            "-q", "[gpu:0]/GPUFanControlState",
+            "-q", "[fan:0]/GPUCurrentFanSpeed",
+            "-q", "[fan:0]/GPUTargetFanSpeed"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.trim().split("\n").map(l => l.trim()).filter(l => l.length > 0);

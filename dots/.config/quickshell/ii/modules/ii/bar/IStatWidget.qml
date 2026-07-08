@@ -16,8 +16,44 @@ Item {
         expandedMetric = (expandedMetric === metricId) ? "" : metricId;
     }
 
-    function formatKB(kb) {
-        return (kb / (1024 * 1024)).toFixed(1) + " GB";
+    // Single definition per metric; the gauges below are stamped from this
+    readonly property var metrics: [
+        { id: "cpu", label: "CPU", color: "#D946A8", showHistory: true, processKey: "usage" },
+        { id: "gpu", label: "GPU", color: "#A855F7", showHistory: false, processKey: "usage" },
+        { id: "mem", label: "MEM", color: "#3B82F6", showHistory: true, processKey: "mem" },
+    ]
+
+    // Property accesses inside these are tracked by QML, so bindings that
+    // call them re-evaluate when ResourceUsage updates
+    function metricValue(id) {
+        if (id === "cpu") return ResourceUsage.cpuUsage;
+        if (id === "gpu") return ResourceUsage.gpuUsage;
+        return ResourceUsage.memoryUsedPercentage;
+    }
+    function metricTemp(id) {
+        if (id === "cpu") return ResourceUsage.cpuTemp;
+        if (id === "gpu") return ResourceUsage.gpuTemp;
+        return -1;
+    }
+    function metricDetails(id) {
+        if (id === "cpu") return [
+            { label: "Load", value: Math.round(ResourceUsage.cpuUsage * 100) + "%" },
+            { label: "Temp", value: Math.round(ResourceUsage.cpuTemp) + "°C" },
+        ];
+        if (id === "gpu") return [
+            { label: "Load", value: Math.round(ResourceUsage.gpuUsage * 100) + "%" },
+            { label: "Temp", value: Math.round(ResourceUsage.gpuTemp) + "°C" },
+        ];
+        return [
+            { label: "Used", value: ResourceUsage.kbToGbString(ResourceUsage.memoryUsed) },
+            { label: "Free", value: ResourceUsage.kbToGbString(ResourceUsage.memoryFree) },
+            { label: "Total", value: ResourceUsage.kbToGbString(ResourceUsage.memoryTotal) },
+        ];
+    }
+    function metricProcesses(id) {
+        if (id === "cpu") return ResourceUsage.topCpuProcesses;
+        if (id === "mem") return ResourceUsage.topMemProcesses;
+        return [];
     }
 
     RowLayout {
@@ -25,61 +61,26 @@ Item {
         anchors.centerIn: parent
         spacing: 8
 
-        IStatGauge {
-            label: "CPU"
-            value: ResourceUsage.cpuUsage
-            gaugeColor: "#D946A8"
-            temp: ResourceUsage.cpuTemp
-            details: [
-                { label: "Load", value: Math.round(ResourceUsage.cpuUsage * 100) + "%" },
-                { label: "Temp", value: Math.round(ResourceUsage.cpuTemp) + "°C" },
-            ]
-            processes: ResourceUsage.topCpuProcesses
-            processValueKey: "usage"
-            metricId: "cpu"
-            showHistory: true
-            expanded: root.expandedMetric === "cpu"
-            onToggleRequested: root.toggleMetric("cpu")
-            // Only clear if we still own the popup: a click on another gauge may
-            // have already switched expandedMetric before this dismissal lands
-            onDismissRequested: if (root.expandedMetric === "cpu") root.expandedMetric = ""
-        }
+        Repeater {
+            model: root.metrics
 
-        IStatGauge {
-            label: "GPU"
-            value: ResourceUsage.gpuUsage
-            gaugeColor: "#A855F7"
-            temp: ResourceUsage.gpuTemp
-            details: [
-                { label: "Load", value: Math.round(ResourceUsage.gpuUsage * 100) + "%" },
-                { label: "Temp", value: Math.round(ResourceUsage.gpuTemp) + "°C" },
-            ]
-            metricId: "gpu"
-            expanded: root.expandedMetric === "gpu"
-            onToggleRequested: root.toggleMetric("gpu")
-            // Only clear if we still own the popup: a click on another gauge may
-            // have already switched expandedMetric before this dismissal lands
-            onDismissRequested: if (root.expandedMetric === "gpu") root.expandedMetric = ""
-        }
-
-        IStatGauge {
-            label: "MEM"
-            value: ResourceUsage.memoryUsedPercentage
-            gaugeColor: "#3B82F6"
-            details: [
-                { label: "Used", value: root.formatKB(ResourceUsage.memoryUsed) },
-                { label: "Free", value: root.formatKB(ResourceUsage.memoryFree) },
-                { label: "Total", value: root.formatKB(ResourceUsage.memoryTotal) },
-            ]
-            processes: ResourceUsage.topMemProcesses
-            processValueKey: "mem"
-            metricId: "mem"
-            showHistory: true
-            expanded: root.expandedMetric === "mem"
-            onToggleRequested: root.toggleMetric("mem")
-            // Only clear if we still own the popup: a click on another gauge may
-            // have already switched expandedMetric before this dismissal lands
-            onDismissRequested: if (root.expandedMetric === "mem") root.expandedMetric = ""
+            IStatGauge {
+                required property var modelData
+                label: modelData.label
+                metricId: modelData.id
+                gaugeColor: modelData.color
+                value: root.metricValue(modelData.id)
+                temp: root.metricTemp(modelData.id)
+                details: root.metricDetails(modelData.id)
+                processes: root.metricProcesses(modelData.id)
+                processValueKey: modelData.processKey
+                showHistory: modelData.showHistory
+                expanded: root.expandedMetric === modelData.id
+                onToggleRequested: root.toggleMetric(modelData.id)
+                // Only clear if we still own the popup: a click on another gauge
+                // may have switched expandedMetric before this dismissal lands
+                onDismissRequested: if (root.expandedMetric === modelData.id) root.expandedMetric = ""
+            }
         }
 
         MouseArea {

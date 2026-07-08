@@ -55,6 +55,13 @@ Singleton {
             onStreamFinished: {
                 try {
                     const data = JSON.parse(this.text);
+                    // The daemon picks the tier closest to the requested span;
+                    // surface a substitute so tier retuning can't silently
+                    // desync the range-picker labels from the plotted data
+                    if (data.window !== root.windowSeconds) {
+                        console.warn("[ResourceHistory] requested window " + root.windowSeconds
+                            + "s but daemon returned " + data.window + "s — tier definitions have drifted");
+                    }
                     root.cpuHistory = data.cpu;
                     root.cpuMaxHistory = data.cpuMax;
                     root.memHistory = data.mem;
