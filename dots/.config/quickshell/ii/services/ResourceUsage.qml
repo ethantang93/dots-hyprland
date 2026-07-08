@@ -32,6 +32,15 @@ Singleton {
     property real previousRaplTimestamp: 0
     property var topCpuProcesses: []
     property var topMemProcesses: []
+    // Counts open popups showing the process lists; the ps probes only run
+    // while nonzero (same pattern as ResourceHistory.consumers)
+    property int detailConsumers: 0
+    onDetailConsumersChanged: {
+        if (detailConsumers > 0) {
+            topCpuProc.running = false; topCpuProc.running = true
+            topMemProc.running = false; topMemProc.running = true
+        }
+    }
 
     property string maxAvailableMemoryString: kbToGbString(ResourceUsage.memoryTotal)
     property string maxAvailableSwapString: kbToGbString(ResourceUsage.swapTotal)
@@ -100,12 +109,14 @@ Singleton {
                 previousCpuStats = { total, idle }
             }
 
-            // Re-trigger external probes
+            // Re-trigger external probes (process lists only while a popup shows them)
             raplProc.running = false; raplProc.running = true
             cpuTempProc.running = false; cpuTempProc.running = true
             gpuStatsProc.running = false; gpuStatsProc.running = true
-            topCpuProc.running = false; topCpuProc.running = true
-            topMemProc.running = false; topMemProc.running = true
+            if (root.detailConsumers > 0) {
+                topCpuProc.running = false; topCpuProc.running = true
+                topMemProc.running = false; topMemProc.running = true
+            }
 
             root.updateHistories()
             interval = Config.options?.resources?.updateInterval ?? 3000
@@ -132,13 +143,19 @@ Singleton {
     Process {
         id: raplProc
         environment: ({ LANG: "C", LC_ALL: "C" })
-        command: ["sudo", "-n", "/usr/local/bin/rapl-read"]
+        command: ["sudo", "-n", "/usr/bin/rapl-read"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const raplUj = Number(this.text.trim())
+                // Skip failed/garbage reads: an unguarded 0/NaN would poison
+                // previousRaplEnergy and spike the next delta to absurd watts
+                const text = this.text.trim()
+                const raplUj = Number(text)
+                if (text === "" || !isFinite(raplUj) || raplUj < 0) return
                 const nowMs = Date.now()
-                if (root.previousRaplEnergy >= 0 && nowMs > root.previousRaplTimestamp) {
-                    const deltaUj = raplUj >= root.previousRaplEnergy ? (raplUj - root.previousRaplEnergy) : raplUj
+                // On counter wraparound (raplUj < previous) the true delta is
+                // unknowable (rapl-read exposes no max range): skip the sample
+                if (root.previousRaplEnergy >= 0 && raplUj >= root.previousRaplEnergy && nowMs > root.previousRaplTimestamp) {
+                    const deltaUj = raplUj - root.previousRaplEnergy
                     const deltaSec = (nowMs - root.previousRaplTimestamp) / 1000
                     if (deltaSec > 0) root.cpuPower = (deltaUj / 1e6) / deltaSec
                 }

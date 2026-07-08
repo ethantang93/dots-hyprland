@@ -1,0 +1,4 @@
+# Passwordless access to the IStat bar widget's privileged helpers.
+# rapl-read only cats the root-readable RAPL energy counter; gpu-fan issues
+# fixed, input-validated nvidia-settings calls (see the script headers).
+%wheel ALL=(root) NOPASSWD: /usr/bin/rapl-read, /usr/bin/gpu-fan

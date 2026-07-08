@@ -1,7 +1,7 @@
 groups=(illogical-impulse)
 pkgname=illogical-impulse-resource-history
 pkgver=1.0
-pkgrel=1
+pkgrel=2
 pkgdesc='CPU/MEM usage history recorder for the illogical-impulse IStat bar widget'
 arch=('x86_64')
 license=('MIT')

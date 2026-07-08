@@ -96,6 +96,7 @@ metapkgs+=(./sdata/dist-arch/illogical-impulse-microtex-git)
 metapkgs+=(./sdata/dist-arch/illogical-impulse-quickshell-git)
 metapkgs+=(./sdata/dist-arch/illogical-impulse-bibata-modern-classic-bin)
 metapkgs+=(./sdata/dist-arch/illogical-impulse-resource-history) # local customization
+metapkgs+=(./sdata/dist-arch/illogical-impulse-istat-helpers) # local customization
 
 for i in "${metapkgs[@]}"; do
   metainstallflags="--needed"

@@ -1,0 +1,68 @@
+#!/bin/bash
+# gpu-fan: privileged NVIDIA fan-control helper.
+# Drives nvidia-settings against the user-login X server (:0) with the
+# session display manager's xauth, since Wayland sessions can't write
+# NV-CONTROL attributes from XWayland.
+#
+# Designed to be invoked via a NOPASSWD sudoers entry restricted to this
+# exact path. All inputs are validated; only fixed nvidia-settings calls
+# are issued.
+
+set -euo pipefail
+
+usage() {
+    echo "Usage: $0 {auto|manual <speed>|speed <speed>|query}" >&2
+    exit 64
+}
+
+validate_speed() {
+    local s="$1"
+    [[ "$s" =~ ^[0-9]+$ ]] || { echo "invalid speed: $s" >&2; exit 65; }
+    (( s >= 0 && s <= 100 )) || { echo "speed out of range: $s" >&2; exit 65; }
+}
+
+# Find an X server we can write to. Prefer SDDM's :0; fall back to other DMs.
+find_xauth() {
+    local f
+    for f in /run/sddm/xauth_* /run/lightdm/root/:0 /run/gdm/auth-for-*/database; do
+        [[ -r "$f" ]] && { printf '%s\n' "$f"; return 0; }
+    done
+    return 1
+}
+
+XAUTH="$(find_xauth || true)"
+if [[ -z "${XAUTH:-}" ]]; then
+    echo "no X server xauth found (looked in /run/sddm, /run/lightdm, /run/gdm)" >&2
+    exit 66
+fi
+
+export DISPLAY=":0"
+export XAUTHORITY="$XAUTH"
+
+cmd="${1:-}"
+case "$cmd" in
+    auto)
+        exec nvidia-settings -a "[gpu:0]/GPUFanControlState=0"
+        ;;
+    manual)
+        speed="${2:-}"
+        validate_speed "$speed"
+        exec nvidia-settings \
+            -a "[gpu:0]/GPUFanControlState=1" \
+            -a "[fan:0]/GPUTargetFanSpeed=$speed"
+        ;;
+    speed)
+        speed="${2:-}"
+        validate_speed "$speed"
+        exec nvidia-settings -a "[fan:0]/GPUTargetFanSpeed=$speed"
+        ;;
+    query)
+        exec nvidia-settings -t \
+            -q "[gpu:0]/GPUFanControlState" \
+            -q "[fan:0]/GPUCurrentFanSpeed" \
+            -q "[fan:0]/GPUTargetFanSpeed"
+        ;;
+    *)
+        usage
+        ;;
+esac
