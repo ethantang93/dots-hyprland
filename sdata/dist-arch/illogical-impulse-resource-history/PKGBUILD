@@ -5,9 +5,10 @@ pkgrel=1
 pkgdesc='CPU/MEM usage history recorder for the illogical-impulse IStat bar widget'
 arch=('x86_64')
 license=('MIT')
-# Explicitly empty: install-local-pkgbuild sources PKGBUILDs in one shell, so
-# an undeclared depends would inherit the previous package's array
-depends=()
+# Declared explicitly: install-local-pkgbuild sources PKGBUILDs in one shell,
+# so an undeclared depends would inherit the previous package's array.
+# gcc-libs is the real runtime dep (the binary links libstdc++).
+depends=(gcc-libs)
 # Local sources: this daemon lives in the dots repo itself (see the qs-side
 # consumer at dots/.config/quickshell/ii/services/ResourceHistory.qml)
 source=("main.cpp" "resource-history.service")
