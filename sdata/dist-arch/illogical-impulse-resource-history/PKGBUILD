@@ -1,0 +1,20 @@
+groups=(illogical-impulse)
+pkgname=illogical-impulse-resource-history
+pkgver=1.0
+pkgrel=1
+pkgdesc='CPU/MEM usage history recorder for the illogical-impulse IStat bar widget'
+arch=('x86_64')
+license=('MIT')
+# Local sources: this daemon lives in the dots repo itself (see the qs-side
+# consumer at dots/.config/quickshell/ii/services/ResourceHistory.qml)
+source=("main.cpp" "resource-history.service")
+sha256sums=('SKIP' 'SKIP')
+
+build() {
+  g++ -std=c++17 -O2 -Wall -o resource-history main.cpp
+}
+
+package() {
+  install -Dm755 resource-history "$pkgdir/usr/bin/resource-history"
+  install -Dm644 resource-history.service "$pkgdir/usr/lib/systemd/user/resource-history.service"
+}

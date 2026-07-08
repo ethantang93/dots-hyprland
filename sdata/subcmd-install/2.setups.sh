@@ -43,8 +43,10 @@ if [[ ! -z $(systemctl --version) ]]; then
     # When $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR are empty, it commonly means that the current user has been logged in with `su - user` or `ssh user@hostname`. In such case `systemctl --user enable <service>` is not usable. It should be `sudo systemctl --machine=$(whoami)@.host --user enable <service>` instead.
     if [[ ! -z "${DBUS_SESSION_BUS_ADDRESS}" ]]; then
       v systemctl --user enable ydotool --now
+      v systemctl --user enable resource-history --now # local customization
     else
       v sudo systemctl --machine=$(whoami)@.host --user enable ydotool --now
+      v sudo systemctl --machine=$(whoami)@.host --user enable resource-history --now # local customization
     fi
   fi
   v sudo systemctl enable bluetooth --now
