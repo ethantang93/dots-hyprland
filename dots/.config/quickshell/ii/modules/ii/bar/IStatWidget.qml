@@ -9,6 +9,13 @@ Item {
     implicitWidth: rowLayout.implicitWidth + 12
     implicitHeight: Appearance.sizes.barHeight
 
+    // Which gauge's popup is open ("" = none); ensures only one at a time
+    property string expandedMetric: ""
+
+    function toggleMetric(metricId) {
+        expandedMetric = (expandedMetric === metricId) ? "" : metricId;
+    }
+
     function formatKB(kb) {
         return (kb / (1024 * 1024)).toFixed(1) + " GB";
     }
@@ -29,6 +36,13 @@ Item {
             ]
             processes: ResourceUsage.topCpuProcesses
             processValueKey: "usage"
+            metricId: "cpu"
+            showHistory: true
+            expanded: root.expandedMetric === "cpu"
+            onToggleRequested: root.toggleMetric("cpu")
+            // Only clear if we still own the popup: a click on another gauge may
+            // have already switched expandedMetric before this dismissal lands
+            onDismissRequested: if (root.expandedMetric === "cpu") root.expandedMetric = ""
         }
 
         IStatGauge {
@@ -40,6 +54,12 @@ Item {
                 { label: "Load", value: Math.round(ResourceUsage.gpuUsage * 100) + "%" },
                 { label: "Temp", value: Math.round(ResourceUsage.gpuTemp) + "°C" },
             ]
+            metricId: "gpu"
+            expanded: root.expandedMetric === "gpu"
+            onToggleRequested: root.toggleMetric("gpu")
+            // Only clear if we still own the popup: a click on another gauge may
+            // have already switched expandedMetric before this dismissal lands
+            onDismissRequested: if (root.expandedMetric === "gpu") root.expandedMetric = ""
         }
 
         IStatGauge {
@@ -53,6 +73,13 @@ Item {
             ]
             processes: ResourceUsage.topMemProcesses
             processValueKey: "mem"
+            metricId: "mem"
+            showHistory: true
+            expanded: root.expandedMetric === "mem"
+            onToggleRequested: root.toggleMetric("mem")
+            // Only clear if we still own the popup: a click on another gauge may
+            // have already switched expandedMetric before this dismissal lands
+            onDismissRequested: if (root.expandedMetric === "mem") root.expandedMetric = ""
         }
 
         MouseArea {

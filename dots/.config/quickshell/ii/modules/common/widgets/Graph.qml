@@ -17,6 +17,15 @@ Canvas {
     property var alignment: Graph.Alignment.Left
 
     onValuesChanged: root.requestPaint()
+
+    // Values < 0 mark gaps (no data); the line and fill break around them
+    function valueAt(i) {
+        var valueIndex = (root.alignment === Graph.Alignment.Right) ? root.values.length - root.points + i : i
+        if (valueIndex < 0 || valueIndex >= root.values.length)
+            return -1
+        return root.values[valueIndex] // already in 0-1 range
+    }
+
     onPaint: {
         var ctx = getContext("2d")
         ctx.clearRect(0, 0, width, height)
@@ -28,24 +37,54 @@ Canvas {
         ctx.strokeStyle = root.color
         ctx.fillStyle = ColorUtils.transparentize(root.color, 1 - root.fillOpacity)
         ctx.lineWidth = 2
+
+        // Stroke pass: line segments only, broken at gaps
         ctx.beginPath()
+        var penDown = false
         for (var i = 0; i < n; ++i) {
-            var valueIndex = (root.alignment === Graph.Alignment.Right) ? root.values.length - n + i : i
-            if (valueIndex < 0 || valueIndex >= root.values.length) {
-                continue; // No data for this point
+            var v = valueAt(i)
+            if (v < 0) {
+                penDown = false
+                continue
             }
             var x = i * dx
-            var norm = root.values[valueIndex] // already in 0-1 range
-            var y = height - norm * height
-            if (valueIndex === 0) {
-                ctx.moveTo(x, height)
-                ctx.lineTo(x, y)
+            var y = height - v * height
+            if (!penDown) {
+                ctx.moveTo(x, y)
+                penDown = true
             } else {
                 ctx.lineTo(x, y)
             }
         }
         ctx.stroke()
-        ctx.lineTo(width, height)
+
+        // Fill pass: same segments closed down to the baseline
+        ctx.beginPath()
+        var segStartX = -1
+        var lastX = 0
+        for (i = 0; i < n; ++i) {
+            v = valueAt(i)
+            if (v < 0) {
+                if (segStartX >= 0) {
+                    ctx.lineTo(lastX, height)
+                    ctx.lineTo(segStartX, height)
+                }
+                segStartX = -1
+                continue
+            }
+            x = i * dx
+            y = height - v * height
+            if (segStartX < 0) {
+                ctx.moveTo(x, height)
+                segStartX = x
+            }
+            ctx.lineTo(x, y)
+            lastX = x
+        }
+        if (segStartX >= 0) {
+            ctx.lineTo(lastX, height)
+            ctx.lineTo(segStartX, height)
+        }
         ctx.fill()
     }
 }
