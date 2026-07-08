@@ -17,6 +17,15 @@ MouseArea {
     property var details: []
     property var processes: []
     property string processValueKey: "usage"
+    property string metricId: ""
+    property bool showHistory: false
+
+    // Click-toggled popup, coordinated by the parent widget
+    property bool expanded: false
+    signal toggleRequested()
+    signal dismissRequested()
+
+    onClicked: gauge.toggleRequested()
 
     property int gaugeHeight: 22
     property int gaugeWidth: 8
@@ -95,9 +104,12 @@ MouseArea {
         }
     }
 
-    // Per-gauge popup
+    // Per-gauge popup, opened on click
     StyledPopup {
         hoverTarget: gauge
+        active: gauge.expanded
+        dismissOnOutsideClick: true
+        onDismissed: gauge.dismissRequested()
 
         IStatPopupSection {
             anchors.centerIn: parent
@@ -107,6 +119,8 @@ MouseArea {
             details: gauge.details
             processes: gauge.processes
             processValueKey: gauge.processValueKey
+            metricId: gauge.metricId
+            showHistory: gauge.showHistory
         }
     }
 }

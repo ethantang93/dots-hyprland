@@ -1,0 +1,11 @@
+[Unit]
+Description=CPU/MEM usage history recorder for Quickshell IStat widget
+
+[Service]
+ExecStart=%h/.local/bin/resource-history record
+Restart=on-failure
+RestartSec=5
+Nice=10
+
+[Install]
+WantedBy=default.target

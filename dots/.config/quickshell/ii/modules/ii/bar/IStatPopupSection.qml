@@ -1,4 +1,5 @@
 import qs.modules.common
+import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
 
@@ -10,57 +11,56 @@ ColumnLayout {
     property var details: []
     property var processes: []
     property string processValueKey: "usage"
+    property string metricId: ""
+    property bool showHistory: false
     readonly property bool hasProcesses: section.processes && section.processes.length > 0
-    readonly property int processNameWidth: 108
-    readonly property int processValueWidth: 48
-    readonly property int processRowSpacing: 6
-    readonly property int processRowWidth: processNameWidth + processValueWidth + processRowSpacing
+    // Single design width for the popup content; chart, dividers, and
+    // process rows all derive from it so they stay aligned
+    readonly property int contentWidth: 240
+    readonly property int processRowSpacing: 12
+    readonly property int processValueWidth: 78
+    readonly property int processNameWidth: contentWidth - processValueWidth - processRowSpacing
+    readonly property int processRowWidth: contentWidth
 
     spacing: 8
 
-    // Title
-    Text {
+    // Ring gauge (iStat Menus style): % + metric name in the center
+    Item {
         Layout.alignment: Qt.AlignHCenter
-        text: section.title
-        font.pixelSize: Appearance.font.pixelSize.small
-        font.weight: Font.Bold
-        font.family: Appearance.font.family.main
-        color: Appearance.colors.colOnLayer1
-    }
+        Layout.topMargin: 4
+        implicitWidth: 88
+        implicitHeight: 88
 
-    // Tall gauge bar
-    Rectangle {
-        Layout.alignment: Qt.AlignHCenter
-        width: 14
-        height: 80
-        radius: 7
-        color: Appearance.colors.colLayer2
+        CircularProgress {
+            anchors.fill: parent
+            implicitSize: 88
+            lineWidth: 7
+            gapAngle: 0
+            value: Math.min(1, section.gaugeValue)
+            colPrimary: section.gaugeColor
+            colSecondary: Appearance.colors.colOutlineVariant
+        }
 
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            height: parent.height * Math.max(0.03, Math.min(1, section.gaugeValue))
-            radius: parent.radius
-            color: section.gaugeColor
+        Column {
+            anchors.centerIn: parent
+            spacing: -2
 
-            Behavior on height {
-                NumberAnimation {
-                    duration: 800
-                    easing.type: Easing.OutCubic
-                }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: Math.round(section.gaugeValue * 100) + "%"
+                font.pixelSize: Appearance.font.pixelSize.huge
+                font.weight: Font.DemiBold
+                font.family: Appearance.font.family.main
+                color: Appearance.colors.colOnLayer1
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: section.title
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.family: Appearance.font.family.main
+                color: Appearance.colors.colSubtext
             }
         }
-    }
-
-    // Percentage below gauge
-    Text {
-        Layout.alignment: Qt.AlignHCenter
-        text: Math.round(section.gaugeValue * 100) + "%"
-        font.pixelSize: Appearance.font.pixelSize.normal
-        font.weight: Font.DemiBold
-        font.family: Appearance.font.family.main
-        color: section.gaugeColor
     }
 
     // Detail rows
@@ -89,9 +89,33 @@ ColumnLayout {
         }
     }
 
+    // Usage history (CPU/MEM only); Loader so inactive popups (GPU) never
+    // instantiate the chart, which drives ResourceHistory refreshes
+    Loader {
+        Layout.alignment: Qt.AlignHCenter
+        active: section.showHistory
+        visible: active
+
+        sourceComponent: Column {
+            spacing: 8
+
+            Rectangle {
+                width: section.contentWidth
+                height: 1
+                color: Appearance.colors.colOutlineVariant
+            }
+
+            IStatHistoryChart {
+                accentColor: section.gaugeColor
+                metricId: section.metricId
+                chartWidth: section.contentWidth
+            }
+        }
+    }
+
     // Process list
     Column {
-        Layout.alignment: Qt.AlignLeft
+        Layout.alignment: Qt.AlignHCenter
         width: section.processRowWidth
         Layout.minimumWidth: section.processRowWidth
         Layout.preferredWidth: section.processRowWidth

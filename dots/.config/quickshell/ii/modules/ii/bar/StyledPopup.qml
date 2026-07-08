@@ -4,6 +4,7 @@ import qs.modules.common.functions
 import QtQuick
 import QtQuick.Effects
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 
 LazyLoader {
@@ -12,6 +13,10 @@ LazyLoader {
     property Item hoverTarget
     default property Item contentItem
     property real popupBackgroundMargin: 0
+    // For click-toggled popups: override `active` from the caller and set this
+    // to close on any click outside the popup (via focus grab).
+    property bool dismissOnOutsideClick: false
+    signal dismissed()
 
     active: hoverTarget && hoverTarget.containsMouse
 
@@ -53,6 +58,18 @@ LazyLoader {
         }
         WlrLayershell.namespace: "quickshell:popup"
         WlrLayershell.layer: WlrLayer.Overlay
+
+        HyprlandFocusGrab {
+            active: root.dismissOnOutsideClick
+            // The bar window must be part of the grab, else clicks on the
+            // toggle targets (gauges) get consumed by the grab clearing and
+            // never reach them (same pattern as SysTray)
+            windows: {
+                const barWindow = root.hoverTarget?.QsWindow?.window;
+                return barWindow ? [popupWindow, barWindow] : [popupWindow];
+            }
+            onCleared: root.dismissed()
+        }
 
         StyledRectangularShadow {
             target: popupBackground
