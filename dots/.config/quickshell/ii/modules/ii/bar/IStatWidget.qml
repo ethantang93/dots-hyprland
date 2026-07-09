@@ -16,7 +16,9 @@ Item {
         expandedMetric = (expandedMetric === metricId) ? "" : metricId;
     }
 
-    // Single definition per metric; the gauges below are stamped from this
+    // Single definition per metric; the gauges below are stamped from this.
+    // Colors are the fixed iStat Menus palette by design — intentionally not
+    // theme-driven, so the gauges look identical across light/dark/wallpaper
     readonly property var metrics: [
         { id: "cpu", label: "CPU", color: "#D946A8", showHistory: true, processKey: "usage" },
         { id: "gpu", label: "GPU", color: "#A855F7", showHistory: false, processKey: "usage" },
@@ -108,22 +110,15 @@ Item {
                     }
                 }
 
-                Column {
+                StyledText {
                     Layout.alignment: Qt.AlignVCenter
-                    spacing: -1
-
-                    Repeater {
-                        model: (Math.round(ResourceUsage.totalPower) + "W").split("")
-                        Text {
-                            text: modelData
-                            font.pixelSize: 7
-                            font.family: Appearance.font.family.main
-                            font.weight: Font.Bold
-                            color: Appearance.colors.colOnLayer1
-                            horizontalAlignment: Text.AlignHCenter
-                            width: 9
-                        }
-                    }
+                    text: (Math.round(ResourceUsage.totalPower) + "W").split("").join("\n")
+                    font.pixelSize: 7
+                    font.weight: Font.Bold
+                    lineHeight: 0.85
+                    color: Appearance.colors.colOnLayer1
+                    horizontalAlignment: Text.AlignHCenter
+                    width: 9
                 }
             }
 

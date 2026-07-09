@@ -14,53 +14,7 @@ StyledPopup {
 
     Row {
         anchors.centerIn: parent
-        spacing: 10
-
-        Column {
-            anchors.top: parent.top
-            spacing: 8
-
-            StyledPopupHeaderRow {
-                icon: "planner_review"
-                label: "CPU"
-            }
-            Column {
-                spacing: 4
-                StyledPopupValueRow {
-                    icon: "bolt"
-                    label: Translation.tr("Load:")
-                    value: `${Math.round(ResourceUsage.cpuUsage * 100)}%`
-                }
-                StyledPopupValueRow {
-                    icon: "thermostat"
-                    label: Translation.tr("Temp:")
-                    value: `${Math.round(ResourceUsage.cpuTemp)}°C`
-                }
-            }
-        }
-
-        Column {
-            anchors.top: parent.top
-            spacing: 8
-
-            StyledPopupHeaderRow {
-                icon: "videocam"
-                label: "GPU"
-            }
-            Column {
-                spacing: 4
-                StyledPopupValueRow {
-                    icon: "bolt"
-                    label: Translation.tr("Load:")
-                    value: `${Math.round(ResourceUsage.gpuUsage * 100)}%`
-                }
-                StyledPopupValueRow {
-                    icon: "thermostat"
-                    label: Translation.tr("Temp:")
-                    value: `${Math.round(ResourceUsage.gpuTemp)}°C`
-                }
-            }
-        }
+        spacing: 12
 
         Column {
             anchors.top: parent.top
@@ -115,6 +69,24 @@ StyledPopup {
                     icon: "empty_dashboard"
                     label: Translation.tr("Total:")
                     value: root.formatKB(ResourceUsage.swapTotal)
+                }
+            }
+        }
+
+        Column {
+            anchors.top: parent.top
+            spacing: 8
+
+            StyledPopupHeaderRow {
+                icon: "planner_review"
+                label: "CPU"
+            }
+            Column {
+                spacing: 4
+                StyledPopupValueRow {
+                    icon: "bolt"
+                    label: Translation.tr("Load:")
+                    value: `${Math.round(ResourceUsage.cpuUsage * 100)}%`
                 }
             }
         }

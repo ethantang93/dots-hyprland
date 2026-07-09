@@ -52,19 +52,17 @@ ColumnLayout {
             anchors.centerIn: parent
             spacing: -2
 
-            Text {
+            StyledText {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: Math.round(section.gaugeValue * 100) + "%"
                 font.pixelSize: Appearance.font.pixelSize.huge
                 font.weight: Font.DemiBold
-                font.family: Appearance.font.family.main
                 color: Appearance.colors.colOnLayer1
             }
-            Text {
+            StyledText {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: section.title
                 font.pixelSize: Appearance.font.pixelSize.smaller
-                font.family: Appearance.font.family.main
                 color: Appearance.colors.colSubtext
             }
         }
@@ -80,16 +78,14 @@ ColumnLayout {
 
             Row {
                 spacing: 4
-                Text {
+                StyledText {
                     text: modelData.label
                     font.pixelSize: Appearance.font.pixelSize.small
-                    font.family: Appearance.font.family.main
                     color: Appearance.colors.colSubtext
                 }
-                Text {
+                StyledText {
                     text: modelData.value
                     font.pixelSize: Appearance.font.pixelSize.small
-                    font.family: Appearance.font.family.main
                     color: Appearance.colors.colOnLayer1
                 }
             }
@@ -148,18 +144,16 @@ ColumnLayout {
                     spacing: section.processRowSpacing
                     width: processColumn.width
 
-                    Text {
+                    StyledText {
                         text: modelData.name
                         font.pixelSize: Appearance.font.pixelSize.small
-                        font.family: Appearance.font.family.main
                         color: Appearance.colors.colOnLayer1
                         width: section.processNameWidth
                         elide: Text.ElideRight
                     }
-                    Text {
-                        text: section.processValueKey === "mem" ? modelData.mem : modelData.usage
+                    StyledText {
+                        text: modelData[section.processValueKey]
                         font.pixelSize: Appearance.font.pixelSize.small
-                        font.family: Appearance.font.family.main
                         color: Appearance.colors.colSubtext
                         width: section.processValueWidth
                         horizontalAlignment: Text.AlignRight

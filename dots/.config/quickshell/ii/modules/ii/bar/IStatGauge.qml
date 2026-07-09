@@ -6,7 +6,6 @@ import QtQuick.Layouts
 
 MouseArea {
     id: gauge
-    hoverEnabled: true
     required property string label
     required property real value
     required property color gaugeColor
@@ -39,22 +38,15 @@ MouseArea {
         spacing: 2
 
         // Vertical label (one letter per line)
-        Column {
+        StyledText {
             Layout.alignment: Qt.AlignVCenter
-            spacing: -1
-
-            Repeater {
-                model: gauge.label.split("")
-                Text {
-                    text: modelData
-                    font.pixelSize: 7
-                    font.weight: Font.Bold
-                    font.family: Appearance.font.family.main
-                    color: Appearance.colors.colOnLayer1
-                    horizontalAlignment: Text.AlignHCenter
-                    width: 9
-                }
-            }
+            text: gauge.label.split("").join("\n")
+            font.pixelSize: 7
+            font.weight: Font.Bold
+            lineHeight: 0.85
+            color: Appearance.colors.colOnLayer1
+            horizontalAlignment: Text.AlignHCenter
+            width: 9
         }
 
         // Vertical bar gauge
@@ -84,23 +76,16 @@ MouseArea {
         }
 
         // Temperature to the right of the gauge
-        Column {
+        StyledText {
             Layout.alignment: Qt.AlignVCenter
             Layout.topMargin: 5
             visible: gauge.showTemp
-            spacing: -1
-
-            Repeater {
-                model: gauge.showTemp ? (Math.round(gauge.temp) + "°").split("") : []
-                Text {
-                    text: modelData
-                    font.pixelSize: 7
-                    font.family: Appearance.font.family.main
-                    color: Appearance.colors.colSubtext
-                    horizontalAlignment: Text.AlignHCenter
-                    width: 8
-                }
-            }
+            text: gauge.showTemp ? (Math.round(gauge.temp) + "°").split("").join("\n") : ""
+            font.pixelSize: 7
+            lineHeight: 0.85
+            color: Appearance.colors.colSubtext
+            horizontalAlignment: Text.AlignHCenter
+            width: 8
         }
     }
 

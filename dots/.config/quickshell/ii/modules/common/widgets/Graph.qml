@@ -18,14 +18,6 @@ Canvas {
 
     onValuesChanged: root.requestPaint()
 
-    // Values < 0 mark gaps (no data); the line and fill break around them
-    function valueAt(i) {
-        var valueIndex = (root.alignment === Graph.Alignment.Right) ? root.values.length - root.points + i : i
-        if (valueIndex < 0 || valueIndex >= root.values.length)
-            return -1
-        return root.values[valueIndex] // already in 0-1 range
-    }
-
     onPaint: {
         var ctx = getContext("2d")
         ctx.clearRect(0, 0, width, height)
@@ -34,56 +26,44 @@ Canvas {
 
         var n = root.points
         var dx = width / (n - 1)
+        var offset = (root.alignment === Graph.Alignment.Right) ? root.values.length - n : 0
+
+        // Values < 0 mark gaps (no data); collect runs of valid points once,
+        // then draw the line and the baseline fill from the same segments
+        var segments = []
+        var seg = null
+        for (var i = 0; i < n; ++i) {
+            var valueIndex = offset + i
+            var v = (valueIndex >= 0 && valueIndex < root.values.length) ? root.values[valueIndex] : -1
+            if (v < 0) {
+                seg = null
+                continue
+            }
+            if (!seg) {
+                seg = []
+                segments.push(seg)
+            }
+            seg.push({ x: i * dx, y: height - v * height }) // values already 0-1
+        }
+
         ctx.strokeStyle = root.color
         ctx.fillStyle = ColorUtils.transparentize(root.color, 1 - root.fillOpacity)
         ctx.lineWidth = 2
 
-        // Stroke pass: line segments only, broken at gaps
         ctx.beginPath()
-        var penDown = false
-        for (var i = 0; i < n; ++i) {
-            var v = valueAt(i)
-            if (v < 0) {
-                penDown = false
-                continue
-            }
-            var x = i * dx
-            var y = height - v * height
-            if (!penDown) {
-                ctx.moveTo(x, y)
-                penDown = true
-            } else {
-                ctx.lineTo(x, y)
-            }
+        for (const s of segments) {
+            ctx.moveTo(s[0].x, s[0].y)
+            for (var j = 1; j < s.length; ++j)
+                ctx.lineTo(s[j].x, s[j].y)
         }
         ctx.stroke()
 
-        // Fill pass: same segments closed down to the baseline
         ctx.beginPath()
-        var segStartX = -1
-        var lastX = 0
-        for (i = 0; i < n; ++i) {
-            v = valueAt(i)
-            if (v < 0) {
-                if (segStartX >= 0) {
-                    ctx.lineTo(lastX, height)
-                    ctx.lineTo(segStartX, height)
-                }
-                segStartX = -1
-                continue
-            }
-            x = i * dx
-            y = height - v * height
-            if (segStartX < 0) {
-                ctx.moveTo(x, height)
-                segStartX = x
-            }
-            ctx.lineTo(x, y)
-            lastX = x
-        }
-        if (segStartX >= 0) {
-            ctx.lineTo(lastX, height)
-            ctx.lineTo(segStartX, height)
+        for (const s of segments) {
+            ctx.moveTo(s[0].x, height)
+            for (const p of s)
+                ctx.lineTo(p.x, p.y)
+            ctx.lineTo(s[s.length - 1].x, height)
         }
         ctx.fill()
     }

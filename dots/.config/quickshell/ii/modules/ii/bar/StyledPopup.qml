@@ -18,7 +18,10 @@ LazyLoader {
     property bool dismissOnOutsideClick: false
     signal dismissed()
 
-    active: hoverTarget && hoverTarget.containsMouse
+    // Hover-open only applies to hover popups: a click-mode caller that forgets
+    // to override `active` gets a popup that never opens (loud and obvious)
+    // rather than one that is simultaneously hover-driven and focus-grabbing
+    active: !dismissOnOutsideClick && hoverTarget && hoverTarget.containsMouse
 
     component: PanelWindow {
         id: popupWindow
