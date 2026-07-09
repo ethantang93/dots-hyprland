@@ -20,11 +20,10 @@ Singleton {
     property int consumers: 0
     readonly property bool active: consumers > 0
 
-    // Values 0-1; -1 marks a gap (no data recorded for that bucket)
+    // Values 0-1; -1 marks a gap (no data recorded for that bucket).
+    // The daemon also returns cpuMax/memMax per-bucket peaks; unused here.
     property list<real> cpuHistory: []
-    property list<real> cpuMaxHistory: []
     property list<real> memHistory: []
-    property list<real> memMaxHistory: []
     property int bucketSeconds: 30
 
     function refresh() {
@@ -63,9 +62,7 @@ Singleton {
                             + "s but daemon returned " + data.window + "s — tier definitions have drifted");
                     }
                     root.cpuHistory = data.cpu;
-                    root.cpuMaxHistory = data.cpuMax;
                     root.memHistory = data.mem;
-                    root.memMaxHistory = data.memMax;
                     root.bucketSeconds = data.bucketSeconds;
                 } catch (e) {
                     console.log("[ResourceHistory] failed to parse query output: " + e);

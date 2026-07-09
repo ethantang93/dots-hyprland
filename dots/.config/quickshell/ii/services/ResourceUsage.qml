@@ -37,8 +37,7 @@ Singleton {
     property int detailConsumers: 0
     onDetailConsumersChanged: {
         if (detailConsumers > 0) {
-            topCpuProc.running = false; topCpuProc.running = true
-            topMemProc.running = false; topMemProc.running = true
+            topProcsProc.running = false; topProcsProc.running = true
         }
     }
 
@@ -114,8 +113,7 @@ Singleton {
             cpuTempProc.running = false; cpuTempProc.running = true
             gpuStatsProc.running = false; gpuStatsProc.running = true
             if (root.detailConsumers > 0) {
-                topCpuProc.running = false; topCpuProc.running = true
-                topMemProc.running = false; topMemProc.running = true
+                topProcsProc.running = false; topProcsProc.running = true
             }
 
             root.updateHistories()
@@ -195,34 +193,21 @@ Singleton {
         }
     }
 
-    // Top 5 CPU-hungry processes
+    // Top 5 CPU- and memory-hungry processes from a single table scan
     Process {
-        id: topCpuProc
+        id: topProcsProc
         environment: ({ LANG: "C", LC_ALL: "C" })
-        command: ["bash", "-c", "ps -eo comm,%cpu --sort=-%cpu --no-headers | head -5"]
+        command: ["ps", "-eo", "comm,%cpu,%mem", "--no-headers"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = this.text.trim().split("\n").filter(l => l.length > 0)
-                root.topCpuProcesses = lines.map(line => {
-                    const m = line.trim().match(/^(.+?)\s+([\d.]+)$/)
-                    return m ? { name: m[1], usage: m[2] + "%" } : null
+                const rows = this.text.trim().split("\n").map(line => {
+                    const m = line.trim().match(/^(.+)\s+([\d.]+)\s+([\d.]+)$/)
+                    return m ? { name: m[1].trim(), cpu: parseFloat(m[2]), mem: parseFloat(m[3]) } : null
                 }).filter(x => x !== null)
-            }
-        }
-    }
-
-    // Top 5 memory-hungry processes
-    Process {
-        id: topMemProc
-        environment: ({ LANG: "C", LC_ALL: "C" })
-        command: ["bash", "-c", "ps -eo comm,%mem --sort=-%mem --no-headers | head -5"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = this.text.trim().split("\n").filter(l => l.length > 0)
-                root.topMemProcesses = lines.map(line => {
-                    const m = line.trim().match(/^(.+?)\s+([\d.]+)$/)
-                    return m ? { name: m[1], mem: m[2] + "%" } : null
-                }).filter(x => x !== null)
+                root.topCpuProcesses = rows.slice().sort((a, b) => b.cpu - a.cpu).slice(0, 5)
+                    .map(r => ({ name: r.name, usage: r.cpu.toFixed(1) + "%" }))
+                root.topMemProcesses = rows.slice().sort((a, b) => b.mem - a.mem).slice(0, 5)
+                    .map(r => ({ name: r.name, mem: r.mem.toFixed(1) + "%" }))
             }
         }
     }

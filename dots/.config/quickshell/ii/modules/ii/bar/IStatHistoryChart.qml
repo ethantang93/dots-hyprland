@@ -46,11 +46,10 @@ ColumnLayout {
                 radius: 9
                 color: pill.selected ? ColorUtils.transparentize(chart.accentColor, 0.7) : "transparent"
 
-                Text {
+                StyledText {
                     anchors.centerIn: parent
                     text: pill.modelData.label
                     font.pixelSize: Appearance.font.pixelSize.small
-                    font.family: Appearance.font.family.main
                     font.weight: pill.selected ? Font.DemiBold : Font.Normal
                     color: pill.selected ? Appearance.colors.colOnLayer1 : Appearance.colors.colSubtext
                 }
