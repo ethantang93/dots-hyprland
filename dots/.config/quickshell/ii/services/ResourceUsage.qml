@@ -93,11 +93,15 @@ Singleton {
             swapFree = Number(textMeminfo.match(/SwapFree: *(\d+)/)?.[1] ?? 0)
 
             const textStat = fileStat.text()
-            const cpuLine = textStat.match(/^cpu\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/)
+            const cpuLine = textStat.match(/^cpu\s+(.+)/)
             if (cpuLine) {
-                const stats = cpuLine.slice(1).map(Number)
+                // user nice system idle iowait irq softirq steal (guest/guest_nice
+                // are already included in user/nice, so stop at 8 fields).
+                // iowait counts as idle, matching top/btop — treating it as busy
+                // wildly overstates usage whenever the system waits on disk.
+                const stats = cpuLine[1].trim().split(/\s+/).slice(0, 8).map(Number)
                 const total = stats.reduce((a, b) => a + b, 0)
-                const idle = stats[3]
+                const idle = stats[3] + (stats[4] ?? 0)
 
                 if (previousCpuStats) {
                     const totalDiff = total - previousCpuStats.total
