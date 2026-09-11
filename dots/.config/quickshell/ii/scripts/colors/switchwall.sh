@@ -12,6 +12,14 @@ SHELL_CONFIG_FILE="$XDG_CONFIG_HOME/illogical-impulse/config.json"
 MATUGEN_DIR="$XDG_CONFIG_HOME/matugen"
 terminalscheme="$SCRIPT_DIR/terminal/scheme-base.json"
 
+# Serialize theme and wallpaper changes; the named-theme backend may hold this lock.
+mkdir -p "$XDG_STATE_HOME/ii-named-themes"
+if [[ "${II_THEME_LOCK_HELD:-}" != "1" ]]; then
+    exec 9>"$XDG_STATE_HOME/ii-named-themes/theme.lock"
+    flock -x 9
+fi
+named_theme=$(jq -r '.id // empty' "$XDG_CONFIG_HOME/illogical-impulse/named-theme.json" 2>/dev/null)
+
 handle_kde_material_you_colors() {
     # Check if Qt app theming is enabled in config
     if [ -f "$SHELL_CONFIG_FILE" ]; then
@@ -192,7 +200,9 @@ switch() {
             exit 0
         fi
 
-        check_and_prompt_upscale "$imgpath" &
+        if [[ -z "$named_theme" ]]; then
+            check_and_prompt_upscale "$imgpath" &
+        fi
         kill_existing_mpvpaper
 
         if is_video "$imgpath"; then
@@ -257,6 +267,12 @@ switch() {
             set_wallpaper_path "$imgpath"
             remove_restore
         fi
+    fi
+
+    # Named palettes stay selected when the wallpaper or light/dark button changes.
+    if [[ -n "$named_theme" ]]; then
+        echo "Keeping named theme: $named_theme"
+        return
     fi
 
     # Determine mode if not set
@@ -418,6 +434,13 @@ main() {
         set_accent_color ""
         color_flag=""
         color=""
+    fi
+
+    # Wallpaper selection remains available without generating over a named palette.
+    if [[ -n "$named_theme" ]]; then
+        color_flag=""
+        color=""
+        type_flag="scheme-tonal-spot"
     fi
 
     # If type_flag is 'auto', detect scheme type from image (after imgpath is set)

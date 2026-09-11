@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Toggle the native gallery without starting another desktop shell.
+picker="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/ii/themes.qml"
+qs -p "$picker" ipc call themePicker toggle 2>/dev/null || exec qs -p "$picker"

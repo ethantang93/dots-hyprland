@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Themes
+Comment=Choose a named color palette for your desktop and apps
+Exec=ii-theme-picker
+Icon=preferences-desktop-theme
+Categories=Settings;DesktopSettings;
+Keywords=theme;colors;appearance;omarchy;
