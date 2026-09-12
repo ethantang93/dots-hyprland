@@ -28,6 +28,8 @@ Rectangle {
     readonly property bool busy: applyProcess.running
     readonly property string backend: Directories.scriptPath + "/colors/named-theme.py"
     readonly property color muted: Appearance.m3colors.m3onSurfaceVariant
+    signal closeRequested()
+    signal operationFinished()
 
     Component.onCompleted: catalogProcess.running = true
     onFilteredChanged: selectedIndex = 0
@@ -76,6 +78,7 @@ Rectangle {
             root.status = code === 0
                 ? (root.activeTheme ? "Theme applied. Make yourself at home." : "Wallpaper colors restored.")
                 : "Could not apply theme: " + errors.slice(-240);
+            root.operationFinished();
         }
     }
 
@@ -124,7 +127,7 @@ Rectangle {
                 ToolTip.visible: hovered
                 ToolTip.text: "Return to colors generated from your wallpaper"
             }
-            Pill { text: "✕"; implicitWidth: 38; enabled: !root.busy; onClicked: Qt.quit() }
+            Pill { text: "✕"; implicitWidth: 38; onClicked: root.closeRequested() }
         }
 
         RowLayout {
@@ -159,7 +162,7 @@ Rectangle {
                             else if (event.key === Qt.Key_Right && text.length === 0) { root.moveSelection(1); event.accepted = true; }
                             else if (event.key === Qt.Key_Left && text.length === 0) { root.moveSelection(-1); event.accepted = true; }
                             else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.applyTheme(false); event.accepted = true; }
-                            else if (event.key === Qt.Key_Escape && !root.busy) { Qt.quit(); event.accepted = true; }
+                            else if (event.key === Qt.Key_Escape) { root.closeRequested(); event.accepted = true; }
                         }
                     }
                     Repeater {
@@ -317,5 +320,5 @@ Rectangle {
             wrapMode: Text.Wrap
         }
     }
-    Shortcut { sequence: "Escape"; enabled: !root.busy; onActivated: Qt.quit() }
+    Shortcut { sequence: "Escape"; onActivated: root.closeRequested() }
 }

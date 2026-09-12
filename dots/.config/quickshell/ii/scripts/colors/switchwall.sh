@@ -63,8 +63,13 @@ post_process() {
     local screen_height="$2"
     local wallpaper_path="$3"
 
-    handle_kde_material_you_colors &
-    "$SCRIPT_DIR/code/material-code-set-color.sh" &
+    if [[ "${II_THEME_SYNC:-}" == "1" ]]; then
+        handle_kde_material_you_colors
+        "$SCRIPT_DIR/code/material-code-set-color.sh"
+    else
+        handle_kde_material_you_colors &
+        "$SCRIPT_DIR/code/material-code-set-color.sh" &
+    fi
 }
 
 check_and_prompt_upscale() {
@@ -200,7 +205,7 @@ switch() {
             exit 0
         fi
 
-        if [[ -z "$named_theme" ]]; then
+        if [[ -z "$named_theme" && "$noswitch_flag" != "1" ]]; then
             check_and_prompt_upscale "$imgpath" &
         fi
         kill_existing_mpvpaper

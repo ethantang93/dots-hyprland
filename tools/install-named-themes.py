@@ -2,6 +2,7 @@
 """Install the named-theme add-on without replacing other desktop customizations."""
 from datetime import datetime
 import os
+import re
 from pathlib import Path
 import shutil
 
@@ -43,7 +44,7 @@ if '# Serialize theme and wallpaper changes;' not in live:
     live = live.replace('\nhandle_kde_material_you_colors()', '\n' + reference[start:end] + '\nhandle_kde_material_you_colors()', 1)
     anchor = '        check_and_prompt_upscale "$imgpath" &'
     assert anchor in live, 'Upstream wallpaper handling changed; review hooks before installing'
-    live = live.replace(anchor, '        if [[ -z "$named_theme" ]]; then\n' + anchor + '\n        fi', 1)
+    live = live.replace(anchor, '        if [[ -z "$named_theme" && "$noswitch_flag" != "1" ]]; then\n' + anchor + '\n        fi', 1)
     for marker, anchor in [('# Named palettes stay selected', '# Determine mode if not set'),
                            ('# Wallpaper selection remains available', "# If type_flag is 'auto', detect scheme type from image (after imgpath is set)")]:
         start = reference.index('    ' + marker)
@@ -51,9 +52,30 @@ if '# Serialize theme and wallpaper changes;' not in live:
         assert '    ' + anchor in live, 'Upstream color generation changed; review hooks before installing'
         live = live.replace('    ' + anchor, reference[start:end] + '    ' + anchor, 1)
 
+# Upgrade an existing installation of the add-on too.
+live = live.replace('if [[ -z "$named_theme" ]]; then\n            check_and_prompt_upscale',
+                    'if [[ -z "$named_theme" && "$noswitch_flag" != "1" ]]; then\n            check_and_prompt_upscale', 1)
+if 'if [[ "${II_THEME_SYNC:-}" == "1" ]]; then' not in live:
+    old = '    handle_kde_material_you_colors &\n    "$SCRIPT_DIR/code/material-code-set-color.sh" &'
+    assert old in live, 'Upstream post-processing changed; review before installing'
+    live = live.replace(old, '''    if [[ "${II_THEME_SYNC:-}" == "1" ]]; then
+        handle_kde_material_you_colors
+        "$SCRIPT_DIR/code/material-code-set-color.sh"
+    else
+        handle_kde_material_you_colors &
+        "$SCRIPT_DIR/code/material-code-set-color.sh" &
+    fi''', 1)
+apply_path = CONFIG / 'quickshell/ii/scripts/colors/applycolor.sh'
+apply_text = apply_path.read_text()
+if 'II_THEME_SYNC' not in apply_text:
+    apply_text, count = re.subn(r'(?m)^( +)apply_term &$',
+                               r'\1if [[ "${II_THEME_SYNC:-}" == "1" ]]; then apply_term; else apply_term & fi', apply_text)
+    assert count == 2, 'Upstream terminal application changed; review before installing'
+
 for name in ['themes.qml', 'modules/ii/themePicker/ThemePickerContent.qml', 'scripts/colors/named-theme.py']:
     install(CONFIG / 'quickshell/ii' / name, (ROOT / 'dots/.config/quickshell/ii' / name).read_text(), name.endswith('.py'))
 install(switch_path, live, True)
+install(apply_path, apply_text, True)
 install(Path.home() / '.local/bin/ii-theme-picker', (ROOT / 'dots/.local/bin/ii-theme-picker').read_text(), True)
 install(DATA / 'applications/ii-theme-picker.desktop', (ROOT / 'dots/.local/share/applications/ii-theme-picker.desktop').read_text())
 

@@ -11,6 +11,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import tomllib
 
 CONFIG = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
@@ -37,14 +38,41 @@ def write(path, text):
     temp.replace(path)
 
 
-def command(*args, check=False, env=None):
+def command(*args, check=False, env=None, timeout=15):
+    # Background descendants of switchwall can keep stdout pipes open indefinitely.
+    # Wait for the actual command, with output in files instead of communicate() pipes.
     try:
-        return subprocess.run(args, text=True, capture_output=True, timeout=45,
-                              check=check, env=env).stdout.strip()
+        with tempfile.TemporaryFile(mode='w+') as stdout, tempfile.TemporaryFile(mode='w+') as stderr:
+            process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr,
+                                       start_new_session=True, env=env, text=True)
+            try:
+                code = process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+                raise TimeoutError(f'{Path(args[0]).name} did not finish within {timeout:g} seconds')
+            stdout.seek(0)
+            stderr.seek(0)
+            output, errors = stdout.read(), stderr.read()
+            if check and code:
+                raise RuntimeError(f'{Path(args[0]).name} failed: {errors.strip() or output.strip()}')
+            return output.strip()
     except FileNotFoundError:
         if check:
             raise
         return ''
+
+
+def acquire_lock(file, timeout=10):
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                raise TimeoutError('Another theme or wallpaper change is still running. Try again shortly.')
+            time.sleep(.05)
 
 
 def rgb(value):
@@ -320,7 +348,7 @@ def apply(name, use_wallpaper=False):
             command('plasma-apply-colorscheme', f'iiNamedTheme-{name}')
         if use_wallpaper and walls:
             env = dict(os.environ, II_THEME_LOCK_HELD='1')
-            command('bash', str(HERE / 'switchwall.sh'), '--image', wallpaper, env=env, check=True)
+            command('bash', str(HERE / 'switchwall.sh'), '--image', wallpaper, env=env, check=True, timeout=45)
     except Exception:
         restore_data(previous)
         reload_apps()
@@ -337,7 +365,7 @@ def restore(regenerate):
     write(ACTIVE, '{"id": ""}\n')
     if regenerate:
         command('bash', str(HERE / 'switchwall.sh'), '--color', 'clear', '--noswitch',
-                env=dict(os.environ, II_THEME_LOCK_HELD='1'), check=True)
+                env=dict(os.environ, II_THEME_LOCK_HELD='1', II_THEME_SYNC='1'), check=True, timeout=45)
     reload_apps()
     return {'active': ''}
 
@@ -363,7 +391,7 @@ def main():
     lock = STATE / 'ii-named-themes/theme.lock'
     lock.parent.mkdir(parents=True, exist_ok=True)
     with lock.open('w') as f:
-        fcntl.flock(f, fcntl.LOCK_EX)
+        acquire_lock(f)
         if args.action == 'apply':
             if not args.name:
                 parser.error('apply requires a theme name')
@@ -376,6 +404,6 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as e:
+    except (OSError, ValueError, KeyError, RuntimeError, subprocess.SubprocessError) as e:
         print(str(e), file=sys.stderr)
         sys.exit(1)

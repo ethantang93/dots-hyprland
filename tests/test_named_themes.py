@@ -1,12 +1,15 @@
 """Run with python -m unittest discover -s tests -p test_named_themes.py."""
 import importlib.util
+import fcntl
 import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
+import time
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +17,7 @@ SCRIPT = ROOT / 'dots/.config/quickshell/ii/scripts/colors/named-theme.py'
 spec = importlib.util.spec_from_file_location('named_theme', SCRIPT)
 theme = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(theme)
+REAL_COMMAND = theme.command
 
 
 class NamedThemeTests(unittest.TestCase):
@@ -133,6 +137,28 @@ bright_blue = "#5482ff"
             theme.apply('../test-dark')
         self.assertFalse(theme.ACTIVE.exists())
         self.assertEqual((theme.GENERATED / 'colors.json').read_bytes(), before)
+
+    def test_command_does_not_wait_for_background_output_handles(self):
+        code = 'import subprocess,sys; subprocess.Popen([sys.executable,"-c","import time; time.sleep(2)"]); print("finished")'
+        started = time.monotonic()
+        self.assertEqual(REAL_COMMAND(sys.executable, '-c', code, timeout=1), 'finished')
+        self.assertLess(time.monotonic() - started, 1)
+
+    def test_timeout_stops_the_entire_command_group(self):
+        marker = self.base / 'child-finished'
+        child = f'import time,pathlib; time.sleep(.7); pathlib.Path({str(marker)!r}).touch()'
+        parent = f'import subprocess,sys,time; subprocess.Popen([sys.executable,"-c",{child!r}]); time.sleep(10)'
+        with self.assertRaises(TimeoutError):
+            REAL_COMMAND(sys.executable, '-c', parent, timeout=.2)
+        time.sleep(.8)
+        self.assertFalse(marker.exists())
+
+    def test_lock_wait_is_bounded(self):
+        path = self.base / 'theme.lock'
+        with path.open('w') as held, path.open('w') as blocked:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            with self.assertRaises(TimeoutError):
+                theme.acquire_lock(blocked, timeout=.1)
 
     def test_wallpaper_change_and_mode_toggle_keep_named_palette(self):
         theme.apply('test-dark')

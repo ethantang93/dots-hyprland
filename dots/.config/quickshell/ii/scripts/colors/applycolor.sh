@@ -83,11 +83,11 @@ CONFIG_FILE="$XDG_CONFIG_HOME/illogical-impulse/config.json"
 if [ -f "$CONFIG_FILE" ]; then
   enable_terminal=$(jq -r '.appearance.wallpaperTheming.enableTerminal' "$CONFIG_FILE")
   if [ "$enable_terminal" = "true" ]; then
-    apply_term &
+    if [[ "${II_THEME_SYNC:-}" == "1" ]]; then apply_term; else apply_term & fi
   fi
 else
   echo "Config file not found at $CONFIG_FILE. Applying terminal theming by default."
-  apply_term &
+  if [[ "${II_THEME_SYNC:-}" == "1" ]]; then apply_term; else apply_term & fi
 fi
 
 # apply_qt & # Qt theming is already handled by kde-material-colors

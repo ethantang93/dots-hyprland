@@ -8,6 +8,9 @@ It opens as a fixed overlay, consistent with end4’s other desktop pickers.
 Select a card, then apply with Enter or the button. Arrow keys browse when search is
 empty; up/down also work while searching. Escape or the shortcut closes the gallery.
 Selecting a card only changes the preview. Double-clicking applies it.
+Escape and the close button remain available during application: they hide the overlay
+while the change finishes, then the picker exits. Theme commands and lock waits are
+bounded so a stalled helper cannot hold the overlay indefinitely.
 
 **Use matching wallpaper** is optional and off by default. **Wallpaper colors** restores
 the pre-theme files and settings, then runs end4's wallpaper color generation again.
@@ -104,4 +107,5 @@ python -m unittest discover -s tests -p test_named_themes.py -v
 
 Tests use temporary config/state and fake desktop commands. They check palette fidelity,
 readability, complete template rendering, multi-theme restoration, failure rollback,
-invalid inputs, and preserving named colors across wallpaper and mode changes.
+invalid inputs, preserving named colors across wallpaper and mode changes, background
+process output handles, process-group timeouts, and bounded lock waits.

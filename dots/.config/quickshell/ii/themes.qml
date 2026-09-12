@@ -14,8 +14,11 @@ ShellRoot {
     Component.onCompleted: MaterialThemeLoader.reapplyTheme()
     IpcHandler {
         target: "themePicker"
-        function close(): void { if (!picker.busy) Qt.quit() }
-        function toggle(): void { if (!picker.busy) Qt.quit() }
+        function close(): void { picker.closeRequested() }
+        function toggle(): void {
+            if (!window.visible) window.visible = true;
+            else picker.closeRequested();
+        }
         function search(query: string): void { picker.searchFor(query) }
         function state(): string {
             return JSON.stringify({query: picker.query, count: picker.filtered.length,
@@ -32,6 +35,14 @@ ShellRoot {
         WlrLayershell.namespace: "quickshell:themePicker"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-        ThemePickerContent { id: picker; anchors.fill: parent }
+        ThemePickerContent {
+            id: picker
+            anchors.fill: parent
+            onCloseRequested: {
+                if (busy) window.visible = false;
+                else Qt.quit();
+            }
+            onOperationFinished: { if (!window.visible) Qt.quit(); }
+        }
     }
 }
