@@ -1,4 +1,5 @@
 import qs.modules.ii.bar.weather
+import qs.modules.ii.bar.aiUsage
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -336,6 +337,13 @@ Item { // Bar content region
                 sourceComponent: BarGroup {
                     WeatherBar {}
                 }
+            }
+
+            // Claude / Codex usage
+            BarGroup {
+                visible: AiUsage.accounts.length > 0
+                Layout.leftMargin: 4
+                AiUsageBar {}
             }
         }
     }
