@@ -17,6 +17,9 @@ mkdir -p "$XDG_STATE_HOME/ii-named-themes"
 if [[ "${II_THEME_LOCK_HELD:-}" != "1" ]]; then
     exec 9>"$XDG_STATE_HOME/ii-named-themes/theme.lock"
     flock -x 9
+    # Background children inherit fd 9 (they close it below, but anything a helper
+    # daemonizes may not); unlocking releases the lock for every holder at once.
+    trap 'flock -u 9' EXIT
 fi
 named_theme=$(jq -r '.id // empty' "$XDG_CONFIG_HOME/illogical-impulse/named-theme.json" 2>/dev/null)
 
@@ -67,8 +70,8 @@ post_process() {
         handle_kde_material_you_colors
         "$SCRIPT_DIR/code/material-code-set-color.sh"
     else
-        handle_kde_material_you_colors &
-        "$SCRIPT_DIR/code/material-code-set-color.sh" &
+        handle_kde_material_you_colors 9>&- &
+        "$SCRIPT_DIR/code/material-code-set-color.sh" 9>&- &
     fi
 }
 
@@ -184,7 +187,7 @@ switch() {
     # Start Gemini auto-categorization if enabled
     aiStylingEnabled=$(jq -r '.background.widgets.clock.cookie.aiStyling' "$SHELL_CONFIG_FILE")
     if [[ "$aiStylingEnabled" == "true" ]]; then
-        categorize_wallpaper "$imgpath" &
+        categorize_wallpaper "$imgpath" 9>&- &
     fi
 
     read scale screenx screeny screensizey < <(hyprctl monitors -j | jq '.[] | select(.focused) | .scale, .x, .y, .height' | xargs)
@@ -206,7 +209,7 @@ switch() {
         fi
 
         if [[ -z "$named_theme" && "$noswitch_flag" != "1" ]]; then
-            check_and_prompt_upscale "$imgpath" &
+            check_and_prompt_upscale "$imgpath" 9>&- &
         fi
         kill_existing_mpvpaper
 
@@ -245,7 +248,7 @@ switch() {
             local video_path="$imgpath"
             monitors=$(hyprctl monitors -j | jq -r '.[] | .name')
             for monitor in $monitors; do
-                mpvpaper -o "$VIDEO_OPTS" "$monitor" "$video_path" &
+                mpvpaper -o "$VIDEO_OPTS" "$monitor" "$video_path" 9>&- &
                 sleep 0.1
             done
 
