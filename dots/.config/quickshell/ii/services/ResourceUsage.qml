@@ -54,6 +54,14 @@ Singleton {
         return (kb / (1024 * 1024)).toFixed(1) + " GB";
     }
 
+    function kbToHumanString(kb) {
+        if (kb >= 1024 * 1024)
+            return kbToGbString(kb);
+        if (kb >= 1024)
+            return Math.round(kb / 1024) + " MB";
+        return Math.round(kb) + " KB";
+    }
+
     function updateMemoryUsageHistory() {
         memoryUsageHistory = [...memoryUsageHistory, memoryUsedPercentage]
         if (memoryUsageHistory.length > historyLength) {
@@ -197,21 +205,23 @@ Singleton {
         }
     }
 
-    // Top 5 CPU- and memory-hungry processes from a single table scan
+    // Top 5 CPU- and memory-hungry processes from a single table scan.
+    // RSS is reported in KiB and lets the memory popup show an actual resident
+    // memory size instead of only a percentage of system RAM.
     Process {
         id: topProcsProc
         environment: ({ LANG: "C", LC_ALL: "C" })
-        command: ["ps", "-eo", "comm,%cpu,%mem", "--no-headers"]
+        command: ["ps", "-eo", "comm,%cpu,rss", "--no-headers"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const rows = this.text.trim().split("\n").map(line => {
                     const m = line.trim().match(/^(.+)\s+([\d.]+)\s+([\d.]+)$/)
-                    return m ? { name: m[1].trim(), cpu: parseFloat(m[2]), mem: parseFloat(m[3]) } : null
+                    return m ? { name: m[1].trim(), cpu: parseFloat(m[2]), memoryKb: parseFloat(m[3]) } : null
                 }).filter(x => x !== null)
                 root.topCpuProcesses = rows.slice().sort((a, b) => b.cpu - a.cpu).slice(0, 5)
                     .map(r => ({ name: r.name, usage: r.cpu.toFixed(1) + "%" }))
-                root.topMemProcesses = rows.slice().sort((a, b) => b.mem - a.mem).slice(0, 5)
-                    .map(r => ({ name: r.name, mem: r.mem.toFixed(1) + "%" }))
+                root.topMemProcesses = rows.slice().sort((a, b) => b.memoryKb - a.memoryKb).slice(0, 5)
+                    .map(r => ({ name: r.name, mem: root.kbToHumanString(r.memoryKb) }))
             }
         }
     }
