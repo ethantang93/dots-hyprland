@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Print Claude / Codex plan usage as one JSON document for the bar.
-# Reads the tokens the official CLIs store; never refreshes or writes them.
+# Reads the tokens the official CLIs store. Only an expired Claude login is ever renewed
+# (and written back), and only while Claude Code isn't running; see renew_claude.
 # Usage: ai-usage.sh [--force]   (--force skips the response cache)
 
 # provider|label|short label (bar)|config dir. Accounts whose credentials don't exist are
@@ -33,14 +34,103 @@ http_get() {
     curl -sS -m 10 -w '\n%{http_code}' -H @- "$1" 2>&1
 }
 
+# Claude access tokens only live ~8h, and the refresh token is single-use (each refresh
+# rotates it). Renew an expired login ourselves only while no Claude Code is running, so
+# we never race it for the refresh token; a running Claude Code renews its own.
+# Endpoint and client id are Claude Code's own (undocumented). At most one attempt per
+# RENEW_GAP per account. On failure, sets renew_msg for the bar.
+RENEW_GAP=600
+CLAUDE_TOKEN_URL=https://platform.claude.com/v1/oauth/token
+CLAUDE_CLIENT_ID=9d1c250a-e61b-44d9-88ed-5944d1962f5e
+renew_msg=""
+
+claude_code_running() {
+    # Native install, or npm's node .../claude-code/cli.js. The Chrome extension's native
+    # host stays resident but never refreshes the login.
+    pgrep -af '(^|/)claude( |$)|@anthropic-ai/claude-code' | grep -qv -- --chrome-native-host
+}
+
+renew_claude() {
+    local dir=$1 id=$2 creds lock
+    creds=$(readlink -f "$dir/.credentials.json") # write through symlinks
+    lock="$CACHE_DIR/renew-$id"
+    # Serialize runs (bar poll vs --force), so a refresh token is never sent twice
+    exec {lockfd}>>"$lock"
+    flock -n "$lockfd" || { exec {lockfd}>&-; renew_msg="Login expired; renewing…"; return 1; }
+    _renew_claude_locked "$creds" "$lock"
+    local rc=$?
+    exec {lockfd}>&-
+    return $rc
+}
+
+_renew_claude_locked() {
+    local creds=$1 lock=$2 refresh resp code body tmp
+    if claude_code_running; then
+        renew_msg="Login expired; Claude Code is open and renews it on its next request"
+        return 1
+    fi
+    # Someone renewed while we waited
+    (( now < $(jq -r '(.claudeAiOauth.expiresAt // 0) / 1000 | floor' "$creds") )) && return 0
+    if [[ -n "$(cat "$lock")" ]] && (( now - $(stat -c %Y "$lock") < RENEW_GAP )); then
+        renew_msg=$(cat "$lock")
+        return 1
+    fi
+
+    refresh=$(jq -r '.claudeAiOauth.refreshToken // empty' "$creds")
+    [[ -z "$refresh" ]] && { renew_msg="Login expired, run claude /login"; return 1; }
+    # Tokens go through the environment and stdin, never argv (visible in ps)
+    resp=$(RT=$refresh CID=$CLAUDE_CLIENT_ID jq -c '
+            {grant_type: "refresh_token", refresh_token: env.RT, client_id: env.CID}
+            + (.claudeAiOauth.scopes // [] | if length > 0 then {scope: join(" ")} else {} end)
+        ' "$creds" \
+        | curl -sS -m 15 -w '\n%{http_code}' -H 'Content-Type: application/json' \
+            --data-binary @- "$CLAUDE_TOKEN_URL" 2>&1)
+    code=${resp##*$'\n'}
+    body=${resp%$'\n'*}
+    if [[ "$code" != 200 ]] || ! jq -e '.access_token | strings' >/dev/null <<<"$body"; then
+        case $code in
+            400 | 401) renew_msg="Login revoked, run claude /login" ;;
+            *) renew_msg="Login expired; renewal failed (HTTP $code)" ;;
+        esac
+        printf '%s' "$renew_msg" >"$lock" # rate-limits the next attempt
+        return 1
+    fi
+    : >"$lock"
+
+    # From here the old refresh token is spent: the new pair must reach the file.
+    # Merge it into whatever the file holds now (newest copy), then rename over it.
+    tmp=$(mktemp "${creds%/*}/.credentials.json.XXXXXX") || tmp=""
+    if [[ -n "$tmp" ]] && R=$body NOWMS=$(date +%s%3N) jq '
+            (env.R | fromjson) as $r | (env.NOWMS | tonumber) as $now
+            | .claudeAiOauth.accessToken = $r.access_token
+            | .claudeAiOauth.refreshToken = ($r.refresh_token // .claudeAiOauth.refreshToken)
+            | .claudeAiOauth.expiresAt = ($now + ($r.expires_in // 3600) * 1000)
+            | if $r.refresh_token_expires_in then
+                .claudeAiOauth.refreshTokenExpiresAt = ($now + $r.refresh_token_expires_in * 1000)
+              else . end
+            | if $r.scope then .claudeAiOauth.scopes = ($r.scope | split(" ")) else . end
+        ' "$creds" >"$tmp" && mv -f "$tmp" "$creds"; then
+        return 0
+    fi
+    [[ -n "$tmp" ]] && rm -f "$tmp"
+    # Last resort: keep the new tokens somewhere private rather than lose them
+    (umask 077; printf '%s\n' "$body" >"${creds%/*}/.credentials.renewed.json")
+    renew_msg="Renewed login could not be saved; see ${creds%/*}/.credentials.renewed.json"
+    return 1
+}
+
 # Echo the normalized {plan, windows} for one account, or fail with a message on stdout
 fetch_claude() {
-    local dir=$1 creds="$1/.credentials.json" token exp plan resp code
+    local dir=$1 id=$2 creds="$1/.credentials.json" token exp plan resp code
     token=$(jq -r '.claudeAiOauth.accessToken // empty' "$creds")
     exp=$(jq -r '(.claudeAiOauth.expiresAt // 0) / 1000 | floor' "$creds")
     plan=$(jq -r '.claudeAiOauth.subscriptionType // ""' "$creds")
     [[ -z "$token" ]] && { echo "No Claude login in $dir"; return 1; }
-    (( now >= exp )) && { echo "Login expired, open Claude Code to renew"; return 2; }
+    if (( now >= exp )) && renew_claude "$dir" "$id"; then
+        token=$(jq -r '.claudeAiOauth.accessToken // empty' "$creds")
+        exp=$(jq -r '(.claudeAiOauth.expiresAt // 0) / 1000 | floor' "$creds")
+    fi
+    (( now >= exp )) && { echo "${renew_msg:-Login expired, open Claude Code to renew}"; return 2; }
 
     resp=$(printf '%s\n' "Authorization: Bearer $token" "anthropic-beta: oauth-2025-04-20" \
         | http_get https://api.anthropic.com/api/oauth/usage)
@@ -114,7 +204,7 @@ account_json() {
         return
     fi
 
-    out=$(fetch_"$provider" "$dir")
+    out=$(fetch_"$provider" "$dir" "$id")
     rc=$?
     if (( rc == 0 )); then
         jq -c --argjson t "$now" '. + {fetchedAt: $t}' <<<"$out" >"$cache"
