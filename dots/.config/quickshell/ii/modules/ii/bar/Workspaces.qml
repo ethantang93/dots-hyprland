@@ -33,6 +33,22 @@ ButtonMouseArea {
     property int workspaceIndexInGroup: (monitor?.activeWorkspace?.id - 1) % wsModel.shownCount
     property real specialTextSize: workspaceButtonWidth * 0.5
 
+    // Each workspace is as many buttons wide as it has windows, so every app icon fits
+    readonly property bool showAppIcons: Config.options?.bar.workspaces.showAppIcons ?? false
+    readonly property var slotSpans: Array.from({
+        length: wsModel.shownCount
+    }, (_, i) => root.showAppIcons ? Math.max(1, wsModel.windows[i]?.length ?? 0) : 1)
+    readonly property var slotOffsets: slotSpans.reduce((acc, span) => acc.concat([acc[acc.length - 1] + span]), [0])
+    function spanAt(index) {
+        return root.slotSpans[index] ?? 1;
+    }
+    // Start of a (possibly fractional, mid-animation) workspace index, in button widths
+    function slotPosition(index) {
+        const i = Math.max(0, Math.min(Math.floor(index), root.slotSpans.length));
+        const base = root.slotOffsets[i] ?? i;
+        return base + (index - i) * root.spanAt(i);
+    }
+
     Layout.alignment: vertical ? Qt.AlignHCenter : Qt.AlignVCenter
     Layout.fillWidth: vertical
     Layout.fillHeight: !vertical
@@ -49,8 +65,11 @@ ButtonMouseArea {
     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.BackButton
     hoverEnabled: true
     property int hoverIndex: {
-        const position = root.vertical ? mouseY : mouseX;
-        return Math.floor(position / root.workspaceButtonWidth);
+        const position = (root.vertical ? mouseY : mouseX) / root.workspaceButtonWidth;
+        let index = 0;
+        while (index < root.slotSpans.length - 1 && root.slotOffsets[index + 1] <= position)
+            index++;
+        return index;
     }
 
     function switchWorkspaceToHovered() {
@@ -116,15 +135,16 @@ ButtonMouseArea {
                     property bool currentOccupied: wsModel.occupied[index] && wsId != wsModel.fakeWorkspace
                     property bool previousOccupied: index > 0 && wsModel.occupied[index - 1] && (wsId - 1) != wsModel.fakeWorkspace
                     property bool nextOccupied: index < wsModel.shownCount - 1 && wsModel.occupied[index + 1] && (wsId + 1) != wsModel.fakeWorkspace
-                    implicitWidth: root.workspaceButtonWidth
-                    implicitHeight: root.workspaceButtonWidth
+                    readonly property real slotLength: root.workspaceButtonWidth * root.spanAt(index)
+                    implicitWidth: root.vertical ? root.workspaceButtonWidth : slotLength
+                    implicitHeight: root.vertical ? slotLength : root.workspaceButtonWidth
 
                     // The idea: over-stretch to occupied sides, animate this for a smooth transition.
                     //           masking already prevents weird overlaps
                     Pill {
                         property real undirectionalWidth: root.workspaceButtonWidth * wsBg.currentOccupied
-                        property real undirectionalLength: root.workspaceButtonWidth * (1 + 0.5 * wsBg.previousOccupied + 0.5 * wsBg.nextOccupied) * currentOccupied
-                        property real undirectionalOffset: (!wsBg.currentOccupied ? 0.5 : -0.5 * wsBg.previousOccupied) * root.workspaceButtonWidth
+                        property real undirectionalLength: (wsBg.slotLength + root.workspaceButtonWidth * (0.5 * wsBg.previousOccupied + 0.5 * wsBg.nextOccupied)) * currentOccupied
+                        property real undirectionalOffset: !wsBg.currentOccupied ? wsBg.slotLength / 2 : -0.5 * wsBg.previousOccupied * root.workspaceButtonWidth
                         anchors.verticalCenter: root.vertical ? undefined : parent.verticalCenter
                         anchors.horizontalCenter: root.vertical ? parent.horizontalCenter : undefined
                         x: root.vertical ? 0 : undirectionalOffset
@@ -216,66 +236,19 @@ ButtonMouseArea {
                 model: wsModel.shownCount
                 delegate: WorkspaceItem {
                     id: wsApp
-                    property var biggestWindow: wsModel.biggestWindow[index]
-                    property var mainAppIconSource: Quickshell.iconPath(AppSearch.guessIcon(biggestWindow?.class), "image-missing")
 
-                    AppIcon {
-                        id: appIcon
-                        property real cornerMargin: (!root.superPressAndHeld && Config.options?.bar.workspaces.showAppIcons && wsApp.biggestWindow) ? (root.workspaceButtonWidth - root.workspaceIconSize) / 2 : root.workspaceIconMarginShrinked
-                        anchors {
-                            bottom: parent.bottom
-                            right: parent.right
-                            bottomMargin: (parent.implicitHeight - root.workspaceButtonWidth) / 2 + cornerMargin
-                            rightMargin: (parent.implicitWidth - root.workspaceButtonWidth) / 2 + cornerMargin
-                        }
+                    Box {
+                        anchors.centerIn: parent
+                        vertical: root.vertical
+                        spacing: 0
 
-                        animated: !wsApp.biggestWindow // Prevent the "image-missing" icon
-                        visible: false // Prevent dupe: the colorizer already copies the icon
-
-                        source: wsApp.mainAppIconSource
-                        implicitSize: NumberUtils.roundToEven(root.workspaceIconSize)
-
-                        Behavior on opacity {
-                            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                        }
-                        Behavior on cornerMargin {
-                            animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
-                        }
-                    }
-
-                    Circle {
-                        id: iconMask
-                        visible: false
-                        layer.enabled: true
-                        diameter: appIcon.implicitSize
-                    }
-
-                    Loader { // Somehow putting this multieffect in a loader prevents it from not showing up
-                        id: colorizer
-                        anchors.fill: appIcon
-                        sourceComponent: Colorizer {
-                            implicitWidth: appIcon.implicitWidth
-                            implicitHeight: appIcon.implicitHeight
-                            colorizationColor: Appearance.m3colors.darkmode ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnPrimary
-                            colorization: Config.options.bar.workspaces.monochromeIcons ? 0.8 : 0.5
-                            brightness: 0
-                            source: appIcon
-
-                            opacity: !Config.options?.bar.workspaces.showAppIcons ? 0 : (wsApp.biggestWindow && !root.superPressAndHeld && Config.options?.bar.workspaces.showAppIcons) ? 1 : wsApp.biggestWindow ? root.workspaceIconOpacityShrinked : 0
-                            visible: opacity > 0
-                            scale: ((!root.superPressAndHeld && Config.options?.bar.workspaces.showAppIcons) ? root.workspaceIconSize : root.workspaceIconSizeShrinked) / root.workspaceIconSize
-
-                            Behavior on opacity {
-                                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                        // Count model, so delegates persist and only swap icons when windows change
+                        Repeater {
+                            model: root.showAppIcons ? (wsModel.windows[wsApp.index]?.length ?? 0) : 0
+                            delegate: WindowAppIcon {
+                                required property int index
+                                window: wsModel.windows[wsApp.index]?.[index]
                             }
-                            Behavior on scale {
-                                animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
-                            }
-
-                            maskEnabled: true
-                            maskSource: iconMask
-                            maskThresholdMin: 0.5
-                            maskSpreadAtMin: 1
                         }
                     }
                 }
@@ -361,13 +334,14 @@ ButtonMouseArea {
     component WorkspaceItem: Item {
         required property int index
         readonly property int wsId: wsModel.getWorkspaceIdAt(index)
-        implicitWidth: root.vertical ? root.barThickness : root.workspaceButtonWidth
-        implicitHeight: root.vertical ? root.workspaceButtonWidth : root.barThickness
+        readonly property real slotLength: root.workspaceButtonWidth * root.spanAt(index)
+        implicitWidth: root.vertical ? root.barThickness : slotLength
+        implicitHeight: root.vertical ? slotLength : root.barThickness
     }
 
     component NumberWorkspaceItem: WorkspaceItem {
         id: wsNum
-        property bool hasBiggestWindow: !!wsModel.biggestWindow[index]
+        property bool hasBiggestWindow: (wsModel.windows[index]?.length ?? 0) > 0
         property int wsId: wsModel.getWorkspaceIdAt(index)
         property color contentColor: (wsModel.occupied[wsNum.index] && wsId !== wsModel.fakeWorkspace) ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1Inactive
         property bool showingNumbers: {
@@ -381,7 +355,7 @@ ButtonMouseArea {
         }
 
         FadeLoader {
-            shown: !wsNum.showingNumbers
+            shown: !wsNum.showingNumbers && !(root.showAppIcons && wsNum.hasBiggestWindow)
             anchors.centerIn: parent
             Circle {
                 anchors.centerIn: parent
@@ -400,6 +374,71 @@ ButtonMouseArea {
                 }
                 color: wsNum.contentColor
                 text: Config.options?.bar.workspaces.numberMap[wsNum.wsId - 1] || wsNum.wsId
+            }
+        }
+    }
+
+    component WindowAppIcon: Item {
+        id: winIcon
+        property var window
+        implicitWidth: root.vertical ? root.barThickness : root.workspaceButtonWidth
+        implicitHeight: root.vertical ? root.workspaceButtonWidth : root.barThickness
+
+        AppIcon {
+            id: appIcon
+            property real cornerMargin: !root.superPressAndHeld ? (root.workspaceButtonWidth - root.workspaceIconSize) / 2 : root.workspaceIconMarginShrinked
+            anchors {
+                bottom: parent.bottom
+                right: parent.right
+                bottomMargin: (parent.implicitHeight - root.workspaceButtonWidth) / 2 + cornerMargin
+                rightMargin: (parent.implicitWidth - root.workspaceButtonWidth) / 2 + cornerMargin
+            }
+
+            animated: false
+            visible: false // Prevent dupe: the colorizer already copies the icon
+
+            source: Quickshell.iconPath(AppSearch.guessIcon(winIcon.window?.class), "image-missing")
+            implicitSize: NumberUtils.roundToEven(root.workspaceIconSize)
+
+            Behavior on cornerMargin {
+                animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
+            }
+        }
+
+        // Rounded square rather than a circle, so square app icons aren't cropped
+        Rectangle {
+            id: iconMask
+            visible: false
+            layer.enabled: true
+            width: appIcon.implicitSize
+            height: appIcon.implicitSize
+            radius: width * 0.25
+        }
+
+        Loader { // Somehow putting this multieffect in a loader prevents it from not showing up
+            anchors.fill: appIcon
+            sourceComponent: Colorizer {
+                implicitWidth: appIcon.implicitWidth
+                implicitHeight: appIcon.implicitHeight
+                colorizationColor: Appearance.m3colors.darkmode ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnPrimary
+                colorization: Config.options.bar.workspaces.monochromeIcons ? 0.8 : 0.5
+                brightness: 0
+                source: appIcon
+
+                opacity: root.superPressAndHeld ? root.workspaceIconOpacityShrinked : 1
+                scale: (!root.superPressAndHeld ? root.workspaceIconSize : root.workspaceIconSizeShrinked) / root.workspaceIconSize
+
+                Behavior on opacity {
+                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                }
+                Behavior on scale {
+                    animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
+                }
+
+                maskEnabled: true
+                maskSource: iconMask
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1
             }
         }
     }
@@ -424,8 +463,8 @@ ButtonMouseArea {
                 horizontalCenter: root.vertical ? parent.horizontalCenter : undefined
             }
 
-            property real indicatorPosition: Math.min(idxPair.idx1, idxPair.idx2) * root.workspaceButtonWidth + root.activeWorkspaceMargin
-            property real indicatorLength: Math.abs(idxPair.idx1 - idxPair.idx2) * root.workspaceButtonWidth + root.activeWorkspaceSize
+            property real indicatorPosition: root.slotPosition(Math.min(idxPair.idx1, idxPair.idx2)) * root.workspaceButtonWidth + root.activeWorkspaceMargin
+            property real indicatorLength: root.slotPosition(Math.max(idxPair.idx1, idxPair.idx2) + 1) * root.workspaceButtonWidth - indicatorPosition - root.activeWorkspaceMargin
             property real indicatorThickness: root.activeWorkspaceSize
 
             contentLayer: StyledRectangle.ContentLayer.Group

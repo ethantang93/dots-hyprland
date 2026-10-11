@@ -33,7 +33,7 @@ Singleton {
     }
 
     function hyprlandClientsForWorkspace(workspace) {
-        return root.windowList.filter(win => win.workspace.id === workspace);
+        return root.windowList.filter(win => win?.workspace?.id === workspace);
     }
 
     function clientForToplevel(toplevel) {

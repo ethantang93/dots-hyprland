@@ -25,6 +25,14 @@ NestableObject {
         var biggestWindow = HyprlandData.biggestWindowForWorkspace(wsId);
         return biggestWindow;
     })
+    // Visible windows of each shown workspace, in on-screen order along the bar's axis
+    // (hidden ones include background tabs of a group)
+    property list<var> windows: occupied.map((_, index) => {
+        const [major, minor] = C.Config.options.bar.vertical ? [1, 0] : [0, 1];
+        return HyprlandData.hyprlandClientsForWorkspace(getWorkspaceIdAt(index))
+            .filter(w => w.mapped && !w.hidden)
+            .sort((a, b) => (a.at[major] - b.at[major]) || (a.at[minor] - b.at[minor]));
+    })
 
     function getWorkspaceId(group, index) {
         return group * root.shownCount + index + 1;
