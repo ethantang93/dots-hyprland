@@ -42,6 +42,8 @@ http_get() {
 RENEW_GAP=600
 CLAUDE_TOKEN_URL=https://platform.claude.com/v1/oauth/token
 CLAUDE_CLIENT_ID=9d1c250a-e61b-44d9-88ed-5944d1962f5e
+# The token endpoint answers curl's default User-Agent with 429
+CLAUDE_UA="claude-cli/2.1.0 (external, cli)"
 renew_msg=""
 
 claude_code_running() {
@@ -83,7 +85,7 @@ _renew_claude_locked() {
             {grant_type: "refresh_token", refresh_token: env.RT, client_id: env.CID}
             + (.claudeAiOauth.scopes // [] | if length > 0 then {scope: join(" ")} else {} end)
         ' "$creds" \
-        | curl -sS -m 15 -w '\n%{http_code}' -H 'Content-Type: application/json' \
+        | curl -sS -m 15 -w '\n%{http_code}' -A "$CLAUDE_UA" -H 'Content-Type: application/json' \
             --data-binary @- "$CLAUDE_TOKEN_URL" 2>&1)
     code=${resp##*$'\n'}
     body=${resp%$'\n'*}
