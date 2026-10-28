@@ -33,7 +33,7 @@ ButtonMouseArea {
     property int workspaceIndexInGroup: (monitor?.activeWorkspace?.id - 1) % wsModel.shownCount
     property real specialTextSize: workspaceButtonWidth * 0.5
 
-    // Each workspace is as many buttons wide as it has windows, so every app icon fits
+    // Each workspace is as many buttons wide as it has apps, so every app icon fits
     readonly property bool showAppIcons: Config.options?.bar.workspaces.showAppIcons ?? false
     readonly property var slotSpans: Array.from({
         length: wsModel.shownCount

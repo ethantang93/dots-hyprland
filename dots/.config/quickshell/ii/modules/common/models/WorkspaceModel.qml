@@ -25,13 +25,15 @@ NestableObject {
         var biggestWindow = HyprlandData.biggestWindowForWorkspace(wsId);
         return biggestWindow;
     })
-    // Visible windows of each shown workspace, in on-screen order along the bar's axis
-    // (hidden ones include background tabs of a group)
+    // First visible window of each app on each shown workspace, in on-screen order along the
+    // bar's axis (hidden ones include background tabs of a group). One per app, since extra
+    // windows like Steam's menus and popups would otherwise show as duplicate icons
     property list<var> windows: occupied.map((_, index) => {
         const [major, minor] = C.Config.options.bar.vertical ? [1, 0] : [0, 1];
         return HyprlandData.hyprlandClientsForWorkspace(getWorkspaceIdAt(index))
             .filter(w => w.mapped && !w.hidden)
-            .sort((a, b) => (a.at[major] - b.at[major]) || (a.at[minor] - b.at[minor]));
+            .sort((a, b) => (a.at[major] - b.at[major]) || (a.at[minor] - b.at[minor]))
+            .filter((w, i, all) => all.findIndex(other => other.class === w.class) === i);
     })
 
     function getWorkspaceId(group, index) {
