@@ -155,5 +155,12 @@ Item {
                 }
             }
         }
+
+        IStatNetwork {
+            Layout.alignment: Qt.AlignVCenter
+            expanded: root.expandedMetric === "net"
+            onToggleRequested: root.toggleMetric("net")
+            onDismissRequested: if (root.expandedMetric === "net") root.expandedMetric = ""
+        }
     }
 }
