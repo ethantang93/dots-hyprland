@@ -8,15 +8,15 @@ import Quickshell.Io
  * Historical CPU/MEM usage for the IStat popup charts. Data is recorded by
  * the resource-history daemon (systemd user unit) into a tiered ring-buffer
  * file; this service only runs its `query` CLI, which returns the ~120
- * downsampled points for the selected window. Marked active while a chart
- * is on screen so refreshes only happen when needed.
+ * downsampled points for the selected window. Marked active by IStatGauge
+ * while a popup with a chart is open, so refreshes only happen when needed.
  */
 Singleton {
     id: root
 
     property int windowSeconds: 3600
-    // Counted, not boolean: when switching popups the new chart can be
-    // created before the old one is destroyed, and a boolean would end false
+    // Counted, not boolean: when switching popups the new gauge can open
+    // before the old one closes, and a boolean would end false
     property int consumers: 0
     readonly property bool active: consumers > 0
 
@@ -38,7 +38,16 @@ Singleton {
         queryProc.running = true;
     }
 
-    onActiveChanged: if (active) refresh()
+    // Drop the data on close, so a later open never flashes an hours-old
+    // chart while the fresh query runs
+    onActiveChanged: {
+        if (active) {
+            refresh();
+        } else {
+            cpuHistory = [];
+            memHistory = [];
+        }
+    }
     onWindowSecondsChanged: if (active) refresh()
 
     Timer {

@@ -8,8 +8,8 @@ import QtQuick.Layouts
 /**
  * Usage-history section for the IStat popups: 1h/6h/12h/1d range picker over
  * a ~120-point line chart. Data comes from the ResourceHistory service
- * (resource-history daemon); the service is marked active while this exists,
- * which the LazyLoader'd popup guarantees matches popup visibility.
+ * (resource-history daemon); IStatGauge marks the service active while its
+ * popup is open.
  */
 ColumnLayout {
     id: chart
@@ -25,9 +25,6 @@ ColumnLayout {
     ]
 
     spacing: 6
-
-    Component.onCompleted: ResourceHistory.consumers++
-    Component.onDestruction: ResourceHistory.consumers--
 
     // Range picker
     Row {

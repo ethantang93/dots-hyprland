@@ -210,6 +210,9 @@ Singleton {
     // memory size instead of only a percentage of system RAM.
     Process {
         id: topProcsProc
+        // Run once at startup so the first popup opens with a full list
+        // instead of growing when its first probe returns
+        running: true
         environment: ({ LANG: "C", LC_ALL: "C" })
         command: ["ps", "-eo", "comm,%cpu,rss", "--no-headers"]
         stdout: StdioCollector {

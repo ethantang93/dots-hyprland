@@ -25,12 +25,6 @@ ColumnLayout {
 
     spacing: 8
 
-    // The ps probes feeding the process list only run while a popup that
-    // shows one is open (GPU has no process list)
-    readonly property bool consumesProcessList: metricId === "cpu" || metricId === "mem"
-    Component.onCompleted: if (consumesProcessList) ResourceUsage.detailConsumers++
-    Component.onDestruction: if (consumesProcessList) ResourceUsage.detailConsumers--
-
     // Ring gauge (iStat Menus style): % + metric name in the center
     Item {
         Layout.alignment: Qt.AlignHCenter
@@ -92,8 +86,8 @@ ColumnLayout {
         }
     }
 
-    // Usage history (CPU/MEM only); Loader so inactive popups (GPU) never
-    // instantiate the chart, which drives ResourceHistory refreshes
+    // Usage history (CPU/MEM only); Loader so the GPU popup never
+    // instantiates the chart
     Loader {
         Layout.alignment: Qt.AlignHCenter
         active: section.showHistory

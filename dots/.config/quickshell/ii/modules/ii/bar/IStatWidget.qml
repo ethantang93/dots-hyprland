@@ -20,9 +20,9 @@ Item {
     // Colors are the fixed iStat Menus palette by design — intentionally not
     // theme-driven, so the gauges look identical across light/dark/wallpaper
     readonly property var metrics: [
-        { id: "cpu", label: "CPU", color: "#D946A8", showHistory: true, processKey: "usage" },
-        { id: "gpu", label: "GPU", color: "#A855F7", showHistory: false, processKey: "usage" },
-        { id: "mem", label: "MEM", color: "#3B82F6", showHistory: true, processKey: "mem" },
+        { id: "cpu", label: "CPU", color: "#D946A8", showHistory: true, showProcesses: true, processKey: "usage" },
+        { id: "gpu", label: "GPU", color: "#A855F7", showHistory: false, showProcesses: false, processKey: "usage" },
+        { id: "mem", label: "MEM", color: "#3B82F6", showHistory: true, showProcesses: true, processKey: "mem" },
     ]
 
     // Property accesses inside these are tracked by QML, so bindings that
@@ -77,6 +77,7 @@ Item {
                 processes: root.metricProcesses(modelData.id)
                 processValueKey: modelData.processKey
                 showHistory: modelData.showHistory
+                showProcesses: modelData.showProcesses
                 expanded: root.expandedMetric === modelData.id
                 onToggleRequested: root.toggleMetric(modelData.id)
                 // Only clear if we still own the popup: a click on another gauge

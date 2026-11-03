@@ -18,6 +18,7 @@ MouseArea {
     property string processValueKey: "usage"
     property string metricId: ""
     property bool showHistory: false
+    property bool showProcesses: false
 
     // Click-toggled popup, coordinated by the parent widget
     property bool expanded: false
@@ -25,6 +26,25 @@ MouseArea {
     signal dismissRequested()
 
     onClicked: gauge.toggleRequested()
+
+    // Run the probes feeding the popup (process list, usage history) only
+    // while it is open. This can't live in the popup content's onCompleted:
+    // StyledPopup takes its content as an Item, created with the bar.
+    // activeFeeds records what was switched on, so closing undoes exactly that.
+    property var activeFeeds: null
+    function setFeedsActive(active) {
+        if (active && !gauge.activeFeeds) {
+            gauge.activeFeeds = { processes: gauge.showProcesses, history: gauge.showHistory };
+            if (gauge.activeFeeds.processes) ResourceUsage.detailConsumers++;
+            if (gauge.activeFeeds.history) ResourceHistory.consumers++;
+        } else if (!active && gauge.activeFeeds) {
+            if (gauge.activeFeeds.processes) ResourceUsage.detailConsumers--;
+            if (gauge.activeFeeds.history) ResourceHistory.consumers--;
+            gauge.activeFeeds = null;
+        }
+    }
+    onExpandedChanged: gauge.setFeedsActive(gauge.expanded)
+    Component.onDestruction: gauge.setFeedsActive(false)
 
     property int gaugeHeight: 22
     property int gaugeWidth: 8
