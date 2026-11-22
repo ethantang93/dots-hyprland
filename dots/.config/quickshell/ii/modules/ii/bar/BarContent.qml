@@ -109,17 +109,26 @@ Item { // Bar content region
         }
         spacing: 4
 
+        // Stats and media are separate islands that together fill the
+        // center-side slot, so the workspaces stay put
         BarGroup {
-            id: leftCenterGroup
+            id: istatGroup
             anchors.verticalCenter: parent.verticalCenter
-            implicitWidth: root.centerSideModuleWidth
+            implicitWidth: mediaGroup.visible ? istatWidget.implicitWidth + padding * 2 : root.centerSideModuleWidth
 
             IStatWidget {
-                Layout.fillWidth: root.useShortenedForm === 2
+                id: istatWidget
+                Layout.fillWidth: !mediaGroup.visible
             }
+        }
+
+        BarGroup {
+            id: mediaGroup
+            anchors.verticalCenter: parent.verticalCenter
+            visible: root.useShortenedForm < 2
+            implicitWidth: Math.max(0, root.centerSideModuleWidth - istatGroup.implicitWidth - middleSection.spacing)
 
             Media {
-                visible: root.useShortenedForm < 2
                 Layout.fillWidth: true
             }
         }
